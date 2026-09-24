@@ -5,10 +5,8 @@
     "owner": "mphotaulela-team",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
-      "image": "./assets/icon.png",
       "backgroundColor": "#0a0e17",
       "resizeMode": "contain"
     },
@@ -19,11 +17,7 @@
       "supportsTablet": true
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0a0e17"
-      },
-      "package": "com.mphotaulela-team.harmonicwolfetrader"
+      "package": "com.mphotaulela.harmonicwolfetrader"
     },
     "web": {
       "bundler": "metro"
