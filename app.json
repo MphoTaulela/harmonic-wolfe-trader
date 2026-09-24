@@ -2,6 +2,7 @@
   "expo": {
     "name": "Harmonic Wolfe Trader",
     "slug": "harmonic-wolfe-trader",
+    "owner": "mphotaulela-team",
     "version": "1.0.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
