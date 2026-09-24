@@ -1,5 +1,5 @@
 {
-  "name": "harmonic-wolfe-trader-t1sqxsgj8a0zkt85oezpf",
+  "name": "harmonic-wolfe-trader",
   "version": "1.0.0",
   "main": "App.tsx",
   "scripts": {
@@ -13,7 +13,7 @@
     "expo-status-bar": "~1.12.1",
     "react": "18.2.0",
     "react-native": "0.74.5",
-    "react-native-webview": "13.8.4",
+    "react-native-webview": "13.8.6",
     "expo-notifications": "~0.28.19",
     "expo-screen-orientation": "~7.0.5",
     "expo-constants": "~16.0.2",
@@ -23,6 +23,13 @@
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "@types/react": "~18.2.79",
-    "typescript": "^5.3.3"
+    "typescript": "~5.3.3"
+  },
+  "expo": {
+    "install": {
+      "exclude": [
+        "typescript"
+      ]
+    }
   }
 }
