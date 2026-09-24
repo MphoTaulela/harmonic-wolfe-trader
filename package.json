@@ -1,7 +1,7 @@
 {
-  "name": "harmonic-wolfe-trader",
+  "name": "harmonic-wolfe-trader-t1sqxsgj8a0zkt85oezpf",
   "version": "1.0.0",
-  "main": "expo-router/entry",
+  "main": "App.tsx",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",

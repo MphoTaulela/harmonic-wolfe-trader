@@ -2,22 +2,25 @@
   "expo": {
     "name": "Harmonic Wolfe Trader",
     "slug": "harmonic-wolfe-trader-t1sqxsgj8a0zkt85oezpf",
-    "owner": "mphotaulela",
+    "owner": "mphotaulela-team",
     "version": "1.0.0",
-    "orientation": "default",
+    "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "harmonic-wolfe",
     "userInterfaceStyle": "dark",
     "splash": {
+      "image": "./assets/icon.png",
       "backgroundColor": "#0a0e17",
       "resizeMode": "contain"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0a0e17"
       },
       "package": "com.mphotaulela.harmonicwolfetrader"
@@ -25,7 +28,6 @@
     "web": {
       "bundler": "metro"
     },
-    "plugins": ["expo-notifications", "expo-screen-orientation"],
     "extra": {
       "eas": {
         "projectId": "bc7f87c0-af6a-4583-9468-67f13dff79e5"
