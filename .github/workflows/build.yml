@@ -9,11 +9,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install EAS
-        run: npm install -g eas-cli
-      - name: Install deps
-        run: npm install --legacy-peer-deps
-      - name: Build APK
+      - run: npm install -g eas-cli
+      - run: npm install --legacy-peer-deps
+      - name: Link and Build
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas build -p android --profile preview --non-interactive --no-wait
+        run: |
+          eas init --account mphotaulela-team --non-interactive || true
+          eas build -p android --profile preview --non-interactive --no-wait
