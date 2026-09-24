@@ -23,7 +23,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0a0e17"
       },
-      "package": "com.mphotaulela.harmonicwolfetrader"
+      "package": "com.mphotaulela-team.harmonicwolfetrader"
     },
     "web": {
       "bundler": "metro"
