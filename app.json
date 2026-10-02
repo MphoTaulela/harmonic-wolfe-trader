@@ -1,27 +1,53 @@
 {
   "expo": {
-    "name": "Harmonic Wolfe Trader",
+    "name": "MERIDIAN",
     "slug": "harmonic-wolfe-trader-t1sqxsgj8a0zkt85oezpf",
     "owner": "mphotaulela",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
-      "backgroundColor": "#0a0e17",
+      "image": "./assets/icon.png",
+      "backgroundColor": "#0a0a0a",
       "resizeMode": "contain"
     },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "background-fetch",
+          "remote-notification"
+        ]
+      }
     },
     "android": {
-      "package": "com.mphotaulela.harmonicwolfetrader"
+      "package": "com.mphotaulela.meridian",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0a0a0a"
+      },
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.WAKE_LOCK",
+        "android.permission.VIBRATE",
+        "android.permission.USE_FULL_SCREEN_INTENT"
+      ],
+      "useNextNotificationsApi": true
     },
-    "web": {
-      "bundler": "metro"
-    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#0a0a0a",
+          "mode": "production"
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "bc7f87c0-af6a-4583-9468-67f13dff79e5"
