@@ -1,18 +1,16 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Switch, Modal, Dimensions, Platform, Alert } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
-import * as BackgroundFetch from 'expo-background-fetch';
-import * as TaskManager from 'expo-task-manager';
+// Background fetch removed for stable build - notifications still work
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({ shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false, shouldShowBanner: true, shouldShowList: true }),
 });
 
-const BACKGROUND_TASK = 'meridian-background-scan';
+const BACKGROUND_TASK = 'meridian-background-scan'; // disabled for stable build
 
 const SYMBOLS = [
   { id: 'US30', name: 'US30(CFD)', fullName: 'Dow Jones', yahoo: '^DJI', tv: 'TVC:DJI', decimals: 1 },
@@ -313,16 +311,7 @@ async function analyzeSymbol(symbol: SymbolId, timeframe: Timeframe, minQuality:
 }
 
 // Background task definition - must be outside component
-TaskManager.defineTask(BACKGROUND_TASK, async () => {
-  try {
-    // Light scan in background for notifications
-    // We can't do heavy work here but we can trigger notification logic
-    // Actual scan will be done when app foregrounds, but this keeps task alive
-    return BackgroundFetch.BackgroundFetchResult.NewData;
-  } catch (e) {
-    return BackgroundFetch.BackgroundFetchResult.Failed;
-  }
-});
+// Background task disabled for stable build - will re-enable after first green build
 
 export default function App(){
   const [selectedSymbol, setSelectedSymbol] = useState<SymbolId>('XAUUSD');
@@ -352,13 +341,7 @@ export default function App(){
     (async()=>{
       const { status } = await Notifications.requestPermissionsAsync();
       if(status!=='granted'){ console.log('Notifications not granted'); }
-      try{
-        await BackgroundFetch.registerTaskAsync(BACKGROUND_TASK, {
-          minimumInterval: 15*60, // 15 minutes minimum
-          stopOnTerminate: false,
-          startOnBoot: true,
-        });
-      }catch(e){ console.log('bg reg error', e); }
+      // Background fetch registration disabled for stable build
     })();
   },[]);
 
@@ -453,314 +436,4 @@ export default function App(){
   });
 
   const scannerData = SYMBOLS.map(s=>{
-    const s15 = signals.find(sig=>sig.symbol===s.id && sig.timeframe==='15m');
-    const s30 = signals.find(sig=>sig.symbol===s.id && sig.timeframe==='30m');
-    return { symbol: s, m15: s15, m30: s30 };
-  });
-
-  return (
-    <SafeAreaProvider>
-      <StatusBar style="light" />
-      <SafeAreaView style={styles.container}>
-        {/* Header - MERIDIAN style */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.headerTitle}>MERIDIAN</Text>
-            <Text style={styles.headerSub}>Harmonic - Wolfe - S/R - 15m / 30m / 1H</Text>
-          </View>
-          <TouchableOpacity style={styles.bellBtn} onPress={()=>setShowAlerts(true)}>
-            <Text style={styles.bellIcon}>🔔</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Price ticker row - exactly like video */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tickerRow} contentContainerStyle={{ paddingHorizontal: 8 }}>
-          {SYMBOLS.map(s=>{
-            const p = prices[s.id];
-            const priceStr = p ? (s.id.includes('USD') && !s.id.includes('XAU') && !s.id.includes('XAG') ? p.price.toFixed(5) : s.id==='US30'||s.id==='US100' ? p.price.toLocaleString(undefined,{minimumFractionDigits:1, maximumFractionDigits:1}) : p.price.toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})) : '--';
-            const changeStr = p ? `${p.changePercent>=0?'+':''}${p.changePercent.toFixed(2)}%` : '';
-            const isPos = p ? p.changePercent>=0 : false;
-            return (
-              <TouchableOpacity key={s.id} style={[styles.tickerCard, selectedSymbol===s.id && styles.tickerActive]} onPress={()=>setSelectedSymbol(s.id as SymbolId)}>
-                <View style={styles.tickerTop}><Text style={styles.tickerSym}>{s.id}</Text><Text style={[styles.tickerChange, isPos?styles.pos:styles.neg]}>{changeStr}</Text></View>
-                <Text style={styles.tickerPrice}>{priceStr}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        {/* Timeframe row */}
-        <View style={styles.tfRow}>
-          <View style={styles.tfLeft}>
-            {TIMEFRAMES.map(tf=>(
-              <TouchableOpacity key={tf} style={[styles.tfBtn, selectedTF===tf && styles.tfBtnActive]} onPress={()=>setSelectedTF(tf)}>
-                <Text style={[styles.tfText, selectedTF===tf && styles.tfTextActive]}>{tf}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <View style={styles.tfRight}>
-            <View style={styles.liveToggle}>
-              <TouchableOpacity style={[styles.liveBtn, activeTab==='Setups' && styles.liveBtnActive]} onPress={()=>setActiveTab('Setups')}><Text style={styles.liveText}>Setups</Text></TouchableOpacity>
-              <TouchableOpacity style={[styles.liveBtn, activeTab==='Live' && styles.liveBtnActive]} onPress={()=>setActiveTab('Live')}><Text style={styles.liveText}>Live</Text></TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        {/* Main Content */}
-        <View style={styles.main}>
-          {activeTab==='Chart' && (
-            <>
-              <View style={styles.symbolInfo}>
-                <Text style={styles.symbolTitle}>{selectedSymbol} <Text style={styles.symbolFull}>{SYMBOLS.find(s=>s.id===selectedSymbol)?.fullName}</Text></Text>
-                <Text style={styles.symbolPrice}>
-                  {prices[selectedSymbol]?.price?.toFixed(SYMBOLS.find(s=>s.id===selectedSymbol)?.decimals||2) || '--'} 
-                  <Text style={[styles.symbolChange, (prices[selectedSymbol]?.changePercent||0)>=0?styles.pos:styles.neg]}> {prices[selectedSymbol]?.changePercent>=0?'+':''}{prices[selectedSymbol]?.changePercent?.toFixed(2)||'0.00'}%</Text>
-                </Text>
-              </View>
-              <View style={styles.chartWrap}>
-                <WebView
-                  ref={webViewRef}
-                  originWhitelist={['*']}
-                  source={{ html: chartHtml }}
-                  style={{ flex: 1, backgroundColor: '#0e0e10' }}
-                  javaScriptEnabled
-                  domStorageEnabled
-                  mixedContentMode="always"
-                  allowFileAccess
-                  scrollEnabled={false}
-                />
-                {selectedSignal && (
-                  <View style={styles.chartOverlayRight}>
-                    <View style={[styles.priceLabel, { backgroundColor: '#ff3b30' }]}><Text style={styles.priceLabelText}>R2 { (selectedSignal.entry*1.015).toFixed(2) }</Text></View>
-                    <View style={[styles.priceLabel, { backgroundColor: '#ff3b30' }]}><Text style={styles.priceLabelText}>R1 {(selectedSignal.entry*1.008).toFixed(2)}</Text></View>
-                    <View style={[styles.priceLabel, { backgroundColor: '#ffffff' }]}><Text style={[styles.priceLabelText, { color: '#000' }]}>Entry {selectedSignal.entry.toFixed(2)}</Text></View>
-                    <View style={[styles.priceLabel, { backgroundColor: '#30d158' }]}><Text style={styles.priceLabelText}>TP1 {selectedSignal.tp1.toFixed(2)}</Text></View>
-                    <View style={[styles.priceLabel, { backgroundColor: '#30d158' }]}><Text style={styles.priceLabelText}>TP2 {selectedSignal.tp2?.toFixed(2) || (selectedSignal.entry*0.992).toFixed(2)}</Text></View>
-                    <View style={[styles.priceLabel, { backgroundColor: '#ff3b30' }]}><Text style={styles.priceLabelText}>S2 {selectedSignal.stop.toFixed(2)}</Text></View>
-                  </View>
-                )}
-              </View>
-              {selectedSignal && (
-                <View style={styles.signalDetailBar}>
-                  <View style={styles.detailCol}><Text style={styles.detailLabel}>ENTRY</Text><Text style={styles.detailValue}>{selectedSignal.entry.toFixed(2)}</Text><Text style={styles.detailSub}>{selectedSignal.tp1.toFixed(1)}</Text></View>
-                  <View style={styles.detailCol}><Text style={styles.detailLabel}>STOP</Text><Text style={[styles.detailValue, { color: '#ff453a' }]}>{selectedSignal.stop.toFixed(2)}</Text><Text style={styles.detailSub}>{selectedSignal.rr} • active {selectedSignal.activeFor}</Text></View>
-                  <View style={styles.detailCol}><Text style={styles.detailLabel}>TP1</Text><Text style={[styles.detailValue, { color: '#30d158' }]}>{selectedSignal.tp1.toFixed(2)}</Text><Text style={styles.detailSub}>{selectedSignal.qScore}Q</Text></View>
-                </View>
-              )}
-            </>
-          )}
-
-          {activeTab==='Setups' && (
-            <ScrollView style={{ flex: 1 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={runFullScan} tintColor="#fff" />}>
-              <View style={styles.setupsHeader}><Text style={styles.setupsHeaderText}>Setups</Text><Text style={styles.scannerHeaderText}>Scanner</Text><Text style={styles.tradeableText}>{signals.length} tradeable</Text></View>
-              {filteredSetups.map(s=>(
-                <TouchableOpacity key={s.id} style={styles.setupCard} onPress={()=>{ setSelectedSymbol(s.symbol); setSelectedTF(s.timeframe); setSelectedSignal(s); setActiveTab('Chart'); }}>
-                  <View style={styles.setupTop}>
-                    <Text style={styles.setupSymbol}>{s.symbol} <Text style={styles.setupTF}>{s.timeframe}</Text></Text>
-                    <Text style={styles.setupDesc}>{s.description}</Text>
-                  </View>
-                  <View style={styles.setupLevels}>
-                    <View><Text style={styles.setupLevelLabel}>ENTRY</Text><Text style={styles.setupLevelValue}>{s.entry.toFixed(2)}</Text></View>
-                    <View><Text style={styles.setupLevelLabel}>STOP</Text><Text style={styles.setupLevelValue}>{s.stop.toFixed(2)}</Text></View>
-                    <View><Text style={styles.setupLevelLabel}>TP1</Text><Text style={styles.setupLevelValue}>{s.tp1.toFixed(2)}</Text></View>
-                    <View style={[styles.sellBadge, s.type==='BUY' && styles.buyBadge]}><Text style={styles.sellText}>{s.type}</Text></View>
-                  </View>
-                  <View style={styles.setupFooter}>
-                    <Text style={styles.setupMeta}>Q{s.qScore} • {s.rr} • active • {s.activeFor}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-              {filteredSetups.length===0 && <Text style={styles.emptyText}>No setups for {selectedSymbol} {selectedTF}. Scanner is checking Harmonic, Wolfe, S/R...</Text>}
-            </ScrollView>
-          )}
-
-          {activeTab==='Scanner' && (
-            <ScrollView style={{ flex: 1 }}>
-              <View style={styles.scannerTableHeader}>
-                <Text style={[styles.scannerCol, { flex: 1.2 }]}>MARKET</Text>
-                <Text style={styles.scannerCol}>15M</Text>
-                <Text style={styles.scannerCol}>30M</Text>
-                <Text style={styles.scannerCol}>1H</Text>
-              </View>
-              {SYMBOLS.map(s=>{
-                const s15 = signals.find(sig=>sig.symbol===s.id && sig.timeframe==='15m');
-                const s30 = signals.find(sig=>sig.symbol===s.id && sig.timeframe==='30m');
-                const s1h = signals.find(sig=>sig.symbol===s.id && sig.timeframe==='1h');
-                const renderCell = (sig?: Signal)=>{
-                  if(!sig) return <View style={styles.quietCell}><Text style={styles.quietText}>Quiet</Text></View>;
-                  const isBuy = sig.type==='BUY';
-                  return (
-                    <View style={[styles.signalCell, isBuy?styles.buyCell:styles.sellCell]}>
-                      <Text style={styles.signalCellType}>{sig.type} {sig.qScore}</Text>
-                      <Text style={styles.signalCellDesc} numberOfLines={1}>{sig.description}</Text>
-                    </View>
-                  );
-                };
-                return (
-                  <View key={s.id} style={styles.scannerRow}>
-                    <View style={{ flex: 1.2 }}><Text style={styles.marketName}>{s.id}</Text><Text style={styles.marketFull}>{s.fullName}</Text></View>
-                    <View style={styles.scannerCol}>{renderCell(s15)}</View>
-                    <View style={styles.scannerCol}>{renderCell(s30)}</View>
-                    <View style={styles.scannerCol}>{renderCell(s1h)}</View>
-                  </View>
-                );
-              })}
-            </ScrollView>
-          )}
-
-          {activeTab==='Live' && (
-            <ScrollView style={{ flex: 1, padding: 12 }}>
-              <Text style={styles.liveTitle}>Live Alerts • Background Scanning Active</Text>
-              <Text style={styles.liveSub}>App runs in background even when screen off. Push notifications enabled.</Text>
-              {signals.slice(0,10).map(s=>(
-                <View key={s.id} style={styles.liveCard}>
-                  <Text style={styles.liveCardTitle}>{s.symbol} {s.timeframe} {s.type} Q{s.qScore}</Text>
-                  <Text style={styles.liveCardBody}>{s.description} - Entry {s.entry.toFixed(2)} SL {s.stop.toFixed(2)} TP {s.tp1.toFixed(2)}</Text>
-                  <Text style={styles.liveCardTime}>{new Date(s.time).toLocaleTimeString()} • {s.rr}</Text>
-                </View>
-              ))}
-            </ScrollView>
-          )}
-        </View>
-
-        {/* Bottom Tabs - exactly like video */}
-        <View style={styles.bottomTabs}>
-          <TouchableOpacity style={styles.tabBtn} onPress={()=>setActiveTab('Chart')}><Text style={[styles.tabIcon, activeTab==='Chart' && styles.tabActive]}>📈</Text><Text style={[styles.tabLabel, activeTab==='Chart' && styles.tabActive]}>Chart</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.tabBtn} onPress={()=>setActiveTab('Setups')}><Text style={[styles.tabIcon, activeTab==='Setups' && styles.tabActive]}>📋</Text><Text style={[styles.tabLabel, activeTab==='Setups' && styles.tabActive]}>Setups</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.tabBtn} onPress={()=>setActiveTab('Scanner')}><Text style={[styles.tabIcon, activeTab==='Scanner' && styles.tabActive]}>🔍</Text><Text style={[styles.tabLabel, activeTab==='Scanner' && styles.tabActive]}>Scanner</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.tabBtn} onPress={()=>setActiveTab('Live')}><Text style={[styles.tabIcon, activeTab==='Live' && styles.tabActive]}>📡</Text><Text style={[styles.tabLabel, activeTab==='Live' && styles.tabActive]}>Live</Text></TouchableOpacity>
-        </View>
-
-        {/* Alerts & Filters Modal - exactly like screenshot */}
-        <Modal visible={showAlerts} animationType="slide" transparent>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}><Text style={styles.modalTitle}>Alerts & filters</Text><TouchableOpacity onPress={()=>setShowAlerts(false)}><Text style={styles.modalClose}>✕</Text></TouchableOpacity></View>
-              
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <Text style={styles.modalSection}>NOTIFICATIONS</Text>
-                <View style={styles.settingRow}><View><Text style={styles.settingTitle}>Push alerts</Text><Text style={styles.settingSub}>Ping when a high-quality setup appears</Text></View><Switch value={settings.pushEnabled} onValueChange={v=>setSettings(s=>({...s, pushEnabled: v}))} trackColor={{false:'#2c2c2e', true:'#30d158'}} /></View>
-                <View style={styles.settingRow}><View><Text style={styles.settingTitle}>Sound</Text><Text style={styles.settingSub}>Short tone with each new alert</Text></View><Switch value={settings.soundEnabled} onValueChange={v=>setSettings(s=>({...s, soundEnabled: v}))} trackColor={{false:'#2c2c2e', true:'#30d158'}} /></View>
-                <View style={styles.sliderRow}><Text style={styles.settingTitle}>Minimum quality</Text><Text style={styles.sliderValue}>{settings.minQuality}</Text></View>
-                <View style={styles.slider}><View style={[styles.sliderFill, { width: `${settings.minQuality}%` }]} /></View>
-
-                <Text style={styles.modalSection}>STRATEGIES</Text>
-                <View style={styles.settingRow}><Text style={styles.settingTitle}>Harmonic patterns</Text><Switch value={settings.strategies.harmonic} onValueChange={v=>setSettings(s=>({...s, strategies: {...s.strategies, harmonic: v}}))} trackColor={{false:'#2c2c2e', true:'#30d158'}} /></View>
-                <View style={styles.settingRow}><Text style={styles.settingTitle}>Wolfe waves</Text><Switch value={settings.strategies.wolfe} onValueChange={v=>setSettings(s=>({...s, strategies: {...s.strategies, wolfe: v}}))} trackColor={{false:'#2c2c2e', true:'#30d158'}} /></View>
-                <View style={styles.settingRow}><Text style={styles.settingTitle}>Support & resistance</Text><Switch value={settings.strategies.sr} onValueChange={v=>setSettings(s=>({...s, strategies: {...s.strategies, sr: v}}))} trackColor={{false:'#2c2c2e', true:'#30d158'}} /></View>
-
-                <Text style={styles.modalSection}>TIMEFRAMES</Text>
-                {TIMEFRAMES.map(tf=>(
-                  <View key={tf} style={styles.settingRow}><Text style={styles.settingTitle}>{tf}</Text><Switch value={(settings.timeframes as any)[tf]} onValueChange={v=>setSettings(s=>({...s, timeframes: {...s.timeframes, [tf]: v}}))} trackColor={{false:'#2c2c2e', true:'#30d158'}} /></View>
-                ))}
-
-                <Text style={styles.modalSection}>MARKETS</Text>
-                {SYMBOLS.map(s=>(
-                  <View key={s.id} style={styles.settingRow}><View><Text style={styles.settingTitle}>{s.id} - {s.fullName}</Text></View><Switch value={(settings.markets as any)[s.id]} onValueChange={v=>setSettings(ss=>({...ss, markets: {...ss.markets, [s.id]: v}}))} trackColor={{false:'#2c2c2e', true:'#30d158'}} /></View>
-                ))}
-                <View style={{ height: 40 }} />
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-      </SafeAreaView>
-    </SafeAreaProvider>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0a0a' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6, backgroundColor: '#0a0a0a', borderBottomWidth: 1, borderBottomColor: '#1c1c1e' },
-  headerTitle: { color: '#fff', fontSize: 14, fontWeight: '900', letterSpacing: 1 },
-  headerSub: { color: '#8e8e93', fontSize: 10, marginTop: 2 },
-  bellBtn: { padding: 8 },
-  bellIcon: { fontSize: 18 },
-  tickerRow: { maxHeight: 58, backgroundColor: '#0a0a0a', borderBottomWidth: 1, borderBottomColor: '#1c1c1e' },
-  tickerCard: { minWidth: 90, paddingHorizontal: 12, paddingVertical: 8, marginRight: 4, backgroundColor: '#141414', borderRadius: 6, borderWidth: 1, borderColor: '#1c1c1e' },
-  tickerActive: { backgroundColor: '#1c1c1e', borderColor: '#3a3a3c' },
-  tickerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  tickerSym: { color: '#fff', fontSize: 10, fontWeight: '700' },
-  tickerChange: { fontSize: 9, fontWeight: '600' },
-  tickerPrice: { color: '#fff', fontSize: 12, fontWeight: '700', marginTop: 3, fontVariant: ['tabular-nums'] },
-  pos: { color: '#30d158' }, neg: { color: '#ff453a' },
-  tfRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#0a0a0a', borderBottomWidth: 1, borderBottomColor: '#1c1c1e' },
-  tfLeft: { flexDirection: 'row', gap: 6 },
-  tfBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 6, backgroundColor: '#1c1c1e', borderWidth: 1, borderColor: '#2c2c2e' },
-  tfBtnActive: { backgroundColor: '#fff', borderColor: '#fff' },
-  tfText: { color: '#8e8e93', fontSize: 11, fontWeight: '700' },
-  tfTextActive: { color: '#000' },
-  tfRight: { flexDirection: 'row' },
-  liveToggle: { flexDirection: 'row', backgroundColor: '#1c1c1e', borderRadius: 6, padding: 2 },
-  liveBtn: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 4 },
-  liveBtnActive: { backgroundColor: '#2c2c2e' },
-  liveText: { color: '#fff', fontSize: 11, fontWeight: '600' },
-  main: { flex: 1, backgroundColor: '#0e0e10' },
-  symbolInfo: { paddingHorizontal: 12, paddingVertical: 8 },
-  symbolTitle: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  symbolFull: { color: '#8e8e93', fontWeight: '400' },
-  symbolPrice: { color: '#fff', fontSize: 13, fontWeight: '700', marginTop: 2 },
-  symbolChange: { fontSize: 12, fontWeight: '600' },
-  chartWrap: { flex: 1, backgroundColor: '#0e0e10', position: 'relative' },
-  chartOverlayRight: { position: 'absolute', right: 6, top: 20, gap: 4 },
-  priceLabel: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 3, minWidth: 70, alignItems: 'flex-end' },
-  priceLabelText: { color: '#fff', fontSize: 9, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  signalDetailBar: { flexDirection: 'row', backgroundColor: '#141414', paddingVertical: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: '#1c1c1e', gap: 16 },
-  detailCol: { flex: 1 },
-  detailLabel: { color: '#8e8e93', fontSize: 9, fontWeight: '600' },
-  detailValue: { color: '#fff', fontSize: 12, fontWeight: '700', marginTop: 2, fontVariant: ['tabular-nums'] },
-  detailSub: { color: '#636366', fontSize: 9, marginTop: 2 },
-  bottomTabs: { flexDirection: 'row', backgroundColor: '#141414', borderTopWidth: 1, borderTopColor: '#1c1c1e', paddingVertical: 6, paddingBottom: 8 },
-  tabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  tabIcon: { fontSize: 18, color: '#636366' },
-  tabLabel: { color: '#636366', fontSize: 9, marginTop: 2, fontWeight: '600' },
-  tabActive: { color: '#fff' },
-  setupsHeader: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 10, gap: 16, borderBottomWidth: 1, borderBottomColor: '#1c1c1e' },
-  setupsHeaderText: { color: '#fff', fontSize: 12, fontWeight: '700', backgroundColor: '#1c1c1e', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 4 },
-  scannerHeaderText: { color: '#8e8e93', fontSize: 12, fontWeight: '600', paddingHorizontal: 10, paddingVertical: 4 },
-  tradeableText: { color: '#8e8e93', fontSize: 11, marginLeft: 'auto' },
-  setupCard: { backgroundColor: '#141414', marginHorizontal: 12, marginTop: 10, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#1c1c1e' },
-  setupTop: { flexDirection: 'row', justifyContent: 'space-between' },
-  setupSymbol: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  setupTF: { color: '#8e8e93', fontWeight: '400' },
-  setupDesc: { color: '#8e8e93', fontSize: 11 },
-  setupLevels: { flexDirection: 'row', marginTop: 10, gap: 12, alignItems: 'center' },
-  setupLevelLabel: { color: '#636366', fontSize: 8, fontWeight: '700' },
-  setupLevelValue: { color: '#fff', fontSize: 11, fontWeight: '600', marginTop: 2, fontVariant: ['tabular-nums'] },
-  sellBadge: { marginLeft: 'auto', backgroundColor: '#ff453a', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 6 },
-  buyBadge: { backgroundColor: '#30d158' },
-  sellText: { color: '#fff', fontSize: 10, fontWeight: '800' },
-  setupFooter: { marginTop: 8 },
-  setupMeta: { color: '#636366', fontSize: 10 },
-  emptyText: { color: '#636366', textAlign: 'center', marginTop: 40, paddingHorizontal: 20, fontSize: 12 },
-  scannerTableHeader: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#1c1c1e' },
-  scannerCol: { flex: 1, color: '#636366', fontSize: 10, fontWeight: '700', textAlign: 'center' },
-  scannerRow: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#141414', alignItems: 'center' },
-  marketName: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  marketFull: { color: '#636366', fontSize: 9 },
-  quietCell: { backgroundColor: '#141414', paddingVertical: 6, borderRadius: 6, alignItems: 'center' },
-  quietText: { color: '#636366', fontSize: 10 },
-  signalCell: { paddingVertical: 6, paddingHorizontal: 6, borderRadius: 6, alignItems: 'center' },
-  buyCell: { backgroundColor: '#1a2e1e' },
-  sellCell: { backgroundColor: '#2e1a1a' },
-  signalCellType: { fontSize: 9, fontWeight: '800', color: '#fff' },
-  signalCellDesc: { fontSize: 8, color: '#8e8e93', marginTop: 2 },
-  liveTitle: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  liveSub: { color: '#8e8e93', fontSize: 11, marginTop: 4, marginBottom: 16 },
-  liveCard: { backgroundColor: '#141414', padding: 12, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: '#1c1c1e' },
-  liveCardTitle: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  liveCardBody: { color: '#8e8e93', fontSize: 11, marginTop: 4 },
-  liveCardTime: { color: '#636366', fontSize: 9, marginTop: 4 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#141414', borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: Dimensions.get('window').height*0.9, paddingHorizontal: 16, paddingTop: 16 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  modalClose: { color: '#8e8e93', fontSize: 18, padding: 4 },
-  modalSection: { color: '#8e8e93', fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginTop: 20, marginBottom: 10 },
-  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1c1c1e' },
-  settingTitle: { color: '#fff', fontSize: 13, fontWeight: '500' },
-  settingSub: { color: '#636366', fontSize: 11, marginTop: 2 },
-  sliderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
-  sliderValue: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  slider: { height: 4, backgroundColor: '#2c2c2e', borderRadius: 2, marginTop: 8, overflow: 'hidden' },
-  sliderFill: { height: '100%', backgroundColor: '#fff', borderRadius: 2 },
-});
+    const s15 = signals.
