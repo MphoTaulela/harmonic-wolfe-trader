@@ -14,32 +14,11 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true,
-      "infoPlist": {
-        "UIBackgroundModes": [
-          "background-fetch",
-          "remote-notification"
-        ]
-      }
+      "supportsTablet": true
     },
     "android": {
-      "package": "com.mphotaulela.meridian",
-      "permissions": [
-        "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.WAKE_LOCK",
-        "android.permission.VIBRATE"
-      ],
-      "useNextNotificationsApi": true
+      "package": "com.mphotaulela.meridian"
     },
-    "plugins": [
-      [
-        "expo-notifications",
-        {
-          "color": "#0a0a0a",
-          "mode": "production"
-        }
-      ]
-    ],
     "extra": {
       "eas": {
         "projectId": "bc7f87c0-af6a-4583-9468-67f13dff79e5"
