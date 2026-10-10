@@ -5,24 +5,13 @@ import { WebView } from 'react-native-webview';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
-import * as TaskManager from 'expo-task-manager';
-import * as BackgroundFetch from 'expo-background-fetch';
+
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({ shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false, shouldShowBanner: true, shouldShowList: true }),
 });
 
-const BACKGROUND_TASK = 'meridian-background-scan-v3';
-
-TaskManager.defineTask(BACKGROUND_TASK, async () => {
-  try {
-    // This runs even when app is closed - triggers a notification check
-    // Actual heavy scan happens in foreground, but this keeps OS aware
-    return BackgroundFetch.BackgroundFetchResult.NewData;
-  } catch {
-    return BackgroundFetch.BackgroundFetchResult.Failed;
-  }
-});
+// Background fetch removed for stable build - will add back with correct version
 
 const SYMBOLS = [
   { id: 'US30', name: 'US30(CFD)', fullName: 'Dow Jones', yahoo: '^DJI', decimals: 1 },
@@ -399,4 +388,8 @@ function QualitySlider({ value, onChange }: { value:number, onChange:(v:number)=
         <Text style={{color:'#fff', fontSize:13, fontWeight:'600'}}>Minimum quality</Text>
         <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
           <TouchableOpacity onPress={()=>onChange(Math.max(0, value-1))} style={{ backgroundColor:'#1c1c1e', paddingHorizontal:10, paddingVertical:4, borderRadius:6 }}><Text style={{color:'#fff'}}>−</Text></TouchableOpacity>
-          <Text style={{color:'#fff', fontSize:14, fontW
+          <Text style={{color:'#fff', fontSize:14, fontWeight:'700', minWidth:30, textAlign:'center'}}>{value}</Text>
+          <TouchableOpacity onPress={()=>onChange(Math.min(100, value+1))} style={{ backgroundColor:'#1c1c1e', paddingHorizontal:10, paddingVertical:4, borderRadius:6 }}><Text style={{color:'#fff'}}>+</Text></TouchableOpacity>
+        </View>
+      </View>
+      <View onLayout={e=>setWidth(e.nativeEvent.layout.width)} {...panResponder.panHandlers} style={{ he
