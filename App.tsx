@@ -1,17 +1,14 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Switch, Modal, Dimensions, PanResponder, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Switch, Modal, Dimensions, PanResponder } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 
-
 Notifications.setNotificationHandler({
   handleNotification: async () => ({ shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false, shouldShowBanner: true, shouldShowList: true }),
 });
-
-// Background fetch removed for stable build - will add back with correct version
 
 const SYMBOLS = [
   { id: 'US30', name: 'US30(CFD)', fullName: 'Dow Jones', yahoo: '^DJI', decimals: 1 },
@@ -37,19 +34,12 @@ type Signal = {
   strategy: 'Harmonic'|'Wolfe'|'S/R'; patternName: string;
   entry: number; stop: number; tp1: number; tp2?: number;
   qScore: number; rr: string; description: string; time: number; activeFor: string;
-  patternPoints: PatternPoint[]; // XABCD or 1-5 or S/R touches
-  targetLine?: PatternPoint[]; // For Wolfe EPA
+  patternPoints: PatternPoint[];
+  targetLine?: PatternPoint[];
 };
 
-// FIX 1: Full price formatting for EURUSD/GBPUSD
-function formatPrice(price: number, symbolId: SymbolId): string {
-  const meta = SYMBOLS.find(s=>s.id===symbolId);
-  const dec = meta?.decimals ?? 2;
-  return price.toFixed(dec);
-}
 function formatPriceFull(price: number, symbolId: SymbolId): string {
   const dec = SYMBOLS.find(s=>s.id===symbolId)?.decimals ?? 2;
-  // For forex show full 5 decimals, never truncate to 2
   return price.toFixed(dec);
 }
 
@@ -69,54 +59,13 @@ function getChartHtml(candles: Candle[], signal?: Signal, sr: SRLevel[] = []) {
   const lJson = JSON.stringify(levels);
   const patternJson = JSON.stringify(signal?.patternPoints || []);
   const targetJson = JSON.stringify(signal?.targetLine || []);
-
-  return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><style>
-  body{margin:0;background:#0e0e10;overflow:hidden} #c{width:100vw;height:100vh}
-  .label{position:absolute;color:#fff;font-size:10px;background:rgba(0,0,0,0.7);padding:2px 4px;border-radius:3px}
-  </style><script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script></head><body><div id="c"></div><script>
+  return `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><style>body{margin:0;background:#0e0e10;overflow:hidden}#c{width:100vw;height:100vh}</style><script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script></head><body><div id="c"></div><script>
   const candles=${cJson}; const levels=${lJson}; const pattern=${patternJson}; const targetLine=${targetJson};
-  const chart=LightweightCharts.createChart(document.getElementById('c'),{
-    layout:{background:{color:'#0e0e10'},textColor:'#8a8a8e'},
-    grid:{vertLines:{color:'#1c1c1e'},horzLines:{color:'#1c1c1e'}},
-    rightPriceScale:{borderColor:'#2c2c2e',scaleMargins:{top:0.15,bottom:0.15}},
-    timeScale:{borderColor:'#2c2c2e', timeVisible:true},
-    crosshair:{mode:1}
-  });
+  const chart=LightweightCharts.createChart(document.getElementById('c'),{layout:{background:{color:'#0e0e10'},textColor:'#8a8a8e'},grid:{vertLines:{color:'#1c1c1e'},horzLines:{color:'#1c1c1e'}},rightPriceScale:{borderColor:'#2c2c2e',scaleMargins:{top:0.15,bottom:0.15}},timeScale:{borderColor:'#2c2c2e',timeVisible:true},crosshair:{mode:1}});
   const candleSeries=chart.addCandlestickSeries({upColor:'#30d158',downColor:'#ff453a',borderUpColor:'#30d158',borderDownColor:'#ff453a',wickUpColor:'#30d158',wickDownColor:'#ff453a'});
   candleSeries.setData(candles.map(c=>({time:c.time,open:c.open,high:c.high,low:c.low,close:c.close})));
-  
-  // Horizontal levels - Entry/SL/TP/R/S
-  levels.forEach(l=>{
-    try{ candleSeries.createPriceLine({price:l.price,color:l.color,lineWidth:1,lineStyle:2,axisLabelVisible:true,title:l.title}); }catch(e){}
-  });
-
-  // FIX 4: Draw setups that lead to signal - Harmonic XABCD, Wolfe 1-5, S/R touches
-  if(pattern.length>=2){
-    try{
-      // Main pattern polyline - blue for harmonic, purple for wolfe, orange for SR
-      const isWolfe = pattern[0]?.label?.startsWith('1') || pattern[0]?.label==='1';
-      const lineColor = isWolfe ? '#af52de' : (pattern.length===5 ? '#0a84ff' : '#ff9f0a');
-      const lineSeries = chart.addLineSeries({color: lineColor, lineWidth:2, lineStyle:0});
-      lineSeries.setData(pattern.map(p=>({time:p.time, value:p.price})));
-      
-      // Markers for X,A,B,C,D or 1-5
-      const markers = pattern.map(p=>({
-        time: p.time,
-        position: p.label==='X' || p.label==='1' ? 'belowBar' : 'aboveBar',
-        color: lineColor,
-        shape: 'circle',
-        text: p.label
-      }));
-      candleSeries.setMarkers(markers);
-
-      // For Wolfe - draw EPA target line from 1 to 4 extended
-      if(targetLine.length>=2){
-        const targetSeries = chart.addLineSeries({color:'#ffcc02', lineWidth:1, lineStyle:2});
-        targetSeries.setData(targetLine.map(p=>({time:p.time, value:p.price})));
-      }
-    }catch(e){ console.log('pattern draw error', e); }
-  }
-
+  levels.forEach(l=>{try{candleSeries.createPriceLine({price:l.price,color:l.color,lineWidth:1,lineStyle:2,axisLabelVisible:true,title:l.title});}catch(e){}});
+  if(pattern.length>=2){try{const isWolfe=pattern[0]?.label?.startsWith('1')||pattern[0]?.label==='1';const lineColor=isWolfe?'#af52de':(pattern.length===5?'#0a84ff':'#ff9f0a');const lineSeries=chart.addLineSeries({color:lineColor,lineWidth:2,lineStyle:0});lineSeries.setData(pattern.map(p=>({time:p.time,value:p.price})));const markers=pattern.map(p=>({time:p.time,position:p.label==='X'||p.label==='1'?'belowBar':'aboveBar',color:lineColor,shape:'circle',text:p.label}));candleSeries.setMarkers(markers);if(targetLine.length>=2){const targetSeries=chart.addLineSeries({color:'#ffcc02',lineWidth:1,lineStyle:2});targetSeries.setData(targetLine.map(p=>({time:p.time,value:p.price})));}}catch(e){}}
   chart.timeScale().fitContent();
   </script></body></html>`;
 }
@@ -151,7 +100,7 @@ async function fetchCandles(ticker: string, minutes: number): Promise<Candle[]> 
   }
 }
 
-function findPivots(candles:Candle[]): {time:number, price:number, type:'high'|'low', index:number}[] {
+function findPivots(candles:Candle[]) {
   const pivots: any[] = [];
   const lb=5;
   for (let i=lb;i<candles.length-lb;i++) {
@@ -178,7 +127,7 @@ function findSR(candles:Candle[]): SRLevel[] {
   return Array.from(levels.entries()).filter(([_,v])=>v.count>=2).map(([price,v])=>({price,type:v.type,touches:v.count,strength:Math.min(v.count/4,1),touchTimes:v.times})).sort((a,b)=>b.strength-a.strength).slice(0,6);
 }
 
-function detectHarmonic(candles:Candle[]): {signal: Omit<Signal,'symbol'|'timeframe'|'id'|'time'|'activeFor'> & {points:PatternPoint[]}, points:PatternPoint[]}[] {
+function detectHarmonic(candles:Candle[]) {
   const pivots = findPivots(candles);
   const results: any[] = [];
   if (pivots.length<5) return results;
@@ -190,51 +139,24 @@ function detectHarmonic(candles:Candle[]): {signal: Omit<Signal,'symbol'|'timefr
     if (X.type===A.type) continue;
     const xa=Math.abs(X.price-A.price); if(xa===0) continue;
     const ab=Math.abs(A.price-B.price)/xa;
-    const bc=Math.abs(B.price-C.price)/Math.abs(A.price-B.price||1);
     const cd=Math.abs(C.price-D.price)/xa;
     const near=Math.abs(candles[candles.length-1].close-D.price)/D.price<0.02;
     if (!near) continue;
     const isBullish=D.price<C.price;
-    const patterns=[
-      {name:'Gartley',b:[0.5,0.7],d:[0.7,0.85]},
-      {name:'Bat',b:[0.35,0.55],d:[0.8,0.95]},
-      {name:'Butterfly',b:[0.7,0.85],d:[1.2,1.7]},
-      {name:'Crab',b:[0.35,0.65],d:[1.5,3.7]},
-      {name:'Shark',b:[0.3,0.6],d:[0.9,1.2]},
-    ];
+    const patterns=[{name:'Gartley',b:[0.5,0.7],d:[0.7,0.85]},{name:'Bat',b:[0.35,0.55],d:[0.8,0.95]},{name:'Butterfly',b:[0.7,0.85],d:[1.2,1.7]},{name:'Crab',b:[0.35,0.65],d:[1.5,3.7]}];
     for (const p of patterns) {
       if (ab>=p.b[0]-0.15 && ab<=p.b[1]+0.15 && cd>=p.d[0]-0.25 && cd<=p.d[1]+0.25) {
         const entry=D.price; const stop=isBullish?entry*0.992:entry*1.008; const tp1=isBullish?entry+xa*0.382:entry-xa*0.382; const tp2=isBullish?entry+xa*0.618:entry-xa*0.618;
         const q=Math.round((0.72+Math.random()*0.23)*100);
-        const patternPoints: PatternPoint[] = [
-          {time:X.time, price:X.price, label:'X'},
-          {time:A.time, price:A.price, label:'A'},
-          {time:B.time, price:B.price, label:'B'},
-          {time:C.time, price:C.price, label:'C'},
-          {time:D.time, price:D.price, label:'D'},
-        ];
-        results.push({
-          name:p.name, type:isBullish?'bullish':'bearish', entry, stop, tp1, tp2, q, points:patternPoints
-        });
+        const patternPoints: PatternPoint[] = [{time:X.time, price:X.price, label:'X'},{time:A.time, price:A.price, label:'A'},{time:B.time, price:B.price, label:'B'},{time:C.time, price:C.price, label:'C'},{time:D.time, price:D.price, label:'D'}];
+        results.push({name:p.name, type:isBullish?'bullish':'bearish', entry, stop, tp1, tp2, q, points:patternPoints});
       }
     }
   }
-  return results.slice(0,2).map(r=>({
-    signal: {
-      type: r.type==='bullish'?'BUY':'SELL' as const,
-      strategy:'Harmonic' as const,
-      patternName:r.name,
-      entry:r.entry, stop:r.stop, tp1:r.tp1, tp2:r.tp2,
-      qScore:r.q,
-      rr:'1.6R',
-      description:(r.type==='bullish'?'Bullish ':'Bearish ')+r.name,
-      patternPoints:r.points
-    },
-    points:r.points
-  }));
+  return results.slice(0,2).map(r=>({signal:{type:r.type==='bullish'?'BUY':'SELL' as const,strategy:'Harmonic' as const,patternName:r.name,entry:r.entry,stop:r.stop,tp1:r.tp1,tp2:r.tp2,qScore:r.q,rr:'1.6R',description:(r.type==='bullish'?'Bullish ':'Bearish ')+r.name,patternPoints:r.points},points:r.points}));
 }
 
-function detectWolfe(candles:Candle[]): {signal: Omit<Signal,'symbol'|'timeframe'|'id'|'time'|'activeFor'> & {points:PatternPoint[], target:PatternPoint[]}, points:PatternPoint[], target:PatternPoint[]}[] {
+function detectWolfe(candles:Candle[]) {
   const pivots = findPivots(candles);
   const res: any[] = [];
   if (pivots.length<5) return res;
@@ -247,58 +169,26 @@ function detectWolfe(candles:Candle[]): {signal: Omit<Signal,'symbol'|'timeframe
     if ((bullish||bearish)&&(p5.index-p1.index)<90) {
       const near=Math.abs(candles[candles.length-1].close-p5.price)/p5.price<0.015; if(!near) continue;
       const slope=(p4.price-p1.price)/(p4.time-p1.time||1);
-      const futureTime = candles[candles.length-1].time + 25* (TF_MIN['15m']*60);
+      const futureTime = candles[candles.length-1].time + 25*900;
       const targetPrice = p1.price + slope*(futureTime - p1.time);
-      const points: PatternPoint[] = [
-        {time:p1.time, price:p1.price, label:'1'},
-        {time:p2.time, price:p2.price, label:'2'},
-        {time:p3.time, price:p3.price, label:'3'},
-        {time:p4.time, price:p4.price, label:'4'},
-        {time:p5.time, price:p5.price, label:'5'},
-      ];
-      const targetLine: PatternPoint[] = [
-        {time:p1.time, price:p1.price, label:'1-4'},
-        {time:p4.time, price:p4.price, label:'4'},
-        {time:futureTime, price:targetPrice, label:'EPA'},
-      ];
+      const points: PatternPoint[] = [{time:p1.time, price:p1.price, label:'1'},{time:p2.time, price:p2.price, label:'2'},{time:p3.time, price:p3.price, label:'3'},{time:p4.time, price:p4.price, label:'4'},{time:p5.time, price:p5.price, label:'5'}];
+      const targetLine: PatternPoint[] = [{time:p1.time, price:p1.price, label:'1-4'},{time:p4.time, price:p4.price, label:'4'},{time:futureTime, price:targetPrice, label:'EPA'}];
       const q=Math.round((0.76+Math.random()*0.18)*100);
-      res.push({
-        type:bullish?'bullish':'bearish', entry:p5.price, stop:bullish?p5.price*0.991:p5.price*1.009, tp1:targetPrice, q, points, targetLine
-      });
+      res.push({type:bullish?'bullish':'bearish', entry:p5.price, stop:bullish?p5.price*0.991:p5.price*1.009, tp1:targetPrice, q, points, targetLine});
     }
   }
-  return res.slice(0,2).map(r=>({
-    signal: {
-      type:r.type==='bullish'?'BUY':'SELL' as const,
-      strategy:'Wolfe' as const,
-      patternName:'Wolfe 5',
-      entry:r.entry, stop:r.stop, tp1:r.tp1,
-      qScore:r.q, rr:'2.0R',
-      description:(r.type==='bullish'?'Bullish':'Bearish')+' Wolfe Wave',
-      patternPoints:r.points,
-      targetLine:r.targetLine
-    },
-    points:r.points, target:r.targetLine
-  }));
+  return res.slice(0,2).map(r=>({signal:{type:r.type==='bullish'?'BUY':'SELL' as const,strategy:'Wolfe' as const,patternName:'Wolfe 5',entry:r.entry,stop:r.stop,tp1:r.tp1,qScore:r.q,rr:'2.0R',description:(r.type==='bullish'?'Bullish':'Bearish')+' Wolfe Wave',patternPoints:r.points,targetLine:r.targetLine},points:r.points,target:r.targetLine}));
 }
 
 function isSignalActive(signal:Signal, currentPrice: number | undefined, now:number): boolean {
-  // FIX 5: Expired signals filtering
   const maxAge = TF_MAX_AGE_MS[signal.timeframe] || 2*60*60*1000;
-  if (now - signal.time > maxAge) return false; // Too old
-
-  // If price moved too far from entry (more than 1.5R away) => expired
+  if (now - signal.time > maxAge) return false;
   if (currentPrice) {
     const risk = Math.abs(signal.entry - signal.stop);
     if (risk>0) {
       const dist = Math.abs(currentPrice - signal.entry) / risk;
-      if (dist > 1.5) return false; // Price ran away
-      // If already hit SL or TP
-      if (signal.type==='BUY') {
-        if (currentPrice < signal.stop || currentPrice > signal.tp1*1.005) return false;
-      } else {
-        if (currentPrice > signal.stop || currentPrice < signal.tp1*0.995) return false;
-      }
+      if (dist > 1.5) return false;
+      if (signal.type==='BUY') { if (currentPrice < signal.stop || currentPrice > signal.tp1*1.005) return false; } else { if (currentPrice > signal.stop || currentPrice < signal.tp1*0.995) return false; }
     }
   }
   return true;
@@ -314,29 +204,8 @@ async function analyzeSymbol(symbol: SymbolId, timeframe: Timeframe, minQ:number
   const lastClose = candles[candles.length-1].close;
   const now = Date.now();
   const sigs: Signal[] = [];
-
-  for (const h of harms) {
-    if (h.signal.qScore < minQ) continue;
-    const s = h.signal;
-    sigs.push({
-      id: `${symbol}-${timeframe}-H-${s.patternName}-${now}-${Math.random()}`,
-      symbol, timeframe, type:s.type, strategy:s.strategy, patternName:s.patternName,
-      entry:s.entry, stop:s.stop, tp1:s.tp1, tp2:s.tp2,
-      qScore:s.qScore, rr:s.rr, description:s.description, time:now, activeFor:'just now',
-      patternPoints:s.patternPoints, targetLine:(s as any).targetLine
-    });
-  }
-  for (const w of wolfes) {
-    if (w.signal.qScore < minQ) continue;
-    const s = w.signal;
-    sigs.push({
-      id: `${symbol}-${timeframe}-W-${now}-${Math.random()}`,
-      symbol, timeframe, type:s.type, strategy:s.strategy, patternName:s.patternName,
-      entry:s.entry, stop:s.stop, tp1:s.tp1,
-      qScore:s.qScore, rr:s.rr, description:s.description, time:now, activeFor:'just now',
-      patternPoints:s.patternPoints, targetLine:s.targetLine
-    });
-  }
+  for (const h of harms) { if (h.signal.qScore < minQ) continue; const s = h.signal; sigs.push({id: `${symbol}-${timeframe}-H-${s.patternName}-${now}-${Math.random()}`, symbol, timeframe, type:s.type, strategy:s.strategy, patternName:s.patternName, entry:s.entry, stop:s.stop, tp1:s.tp1, tp2:s.tp2, qScore:s.qScore, rr:s.rr, description:s.description, time:now, activeFor:'just now', patternPoints:s.patternPoints, targetLine:(s as any).targetLine}); }
+  for (const w of wolfes) { if (w.signal.qScore < minQ) continue; const s = w.signal; sigs.push({id: `${symbol}-${timeframe}-W-${now}-${Math.random()}`, symbol, timeframe, type:s.type, strategy:s.strategy, patternName:s.patternName, entry:s.entry, stop:s.stop, tp1:s.tp1, qScore:s.qScore, rr:s.rr, description:s.description, time:now, activeFor:'just now', patternPoints:s.patternPoints, targetLine:s.targetLine}); }
   for (const level of sr) {
     const isR = level.type==='resistance';
     const up = isR && lastClose>level.price*1.001 && lastClose<level.price*1.012;
@@ -346,23 +215,14 @@ async function analyzeSymbol(symbol: SymbolId, timeframe: Timeframe, minQ:number
       const q=Math.round((0.65+level.strength*0.3)*100); if(q<minQ) continue;
       const risk=Math.abs(entry-stop); const rew=Math.abs(tp1-entry); const rr=(rew/(risk||1)).toFixed(1)+'R';
       const touchPoints: PatternPoint[] = level.touchTimes.slice(-4).map((t,i)=>({time:t, price:level.price, label:`${isR?'R':'S'}${i+1}`}));
-      sigs.push({
-        id: `${symbol}-${timeframe}-SR-${level.price}-${now}`,
-        symbol, timeframe, type:isR?'BUY':'SELL', strategy:'S/R', patternName:isR?'Resistance rejection':'Support bounce',
-        entry, stop, tp1, qScore:q, rr, description:isR?'Resistance rejection':'Support bounce',
-        time:now, activeFor:'just now', patternPoints:touchPoints
-      });
+      sigs.push({id: `${symbol}-${timeframe}-SR-${level.price}-${now}`, symbol, timeframe, type:isR?'BUY':'SELL', strategy:'S/R', patternName:isR?'Resistance rejection':'Support bounce', entry, stop, tp1, qScore:q, rr, description:isR?'Resistance rejection':'Support bounce', time:now, activeFor:'just now', patternPoints:touchPoints});
     }
   }
-
-  // FIX 5: Filter out expired immediately
   const currentPrice = currentPrices[symbol]?.price;
   const active = sigs.filter(s=>isSignalActive(s, currentPrice, now));
-
   return { signals: active.sort((a,b)=>b.qScore-a.qScore).slice(0,3), candles, sr };
 }
 
-// FIX 3: Quality slider component - fully adjustable
 function QualitySlider({ value, onChange }: { value:number, onChange:(v:number)=>void }) {
   const [width, setWidth] = useState(0);
   const panResponder = useRef(
@@ -381,7 +241,6 @@ function QualitySlider({ value, onChange }: { value:number, onChange:(v:number)=
       },
     })
   ).current;
-
   return (
     <View style={{ marginTop:12 }}>
       <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
@@ -392,4 +251,54 @@ function QualitySlider({ value, onChange }: { value:number, onChange:(v:number)=
           <TouchableOpacity onPress={()=>onChange(Math.min(100, value+1))} style={{ backgroundColor:'#1c1c1e', paddingHorizontal:10, paddingVertical:4, borderRadius:6 }}><Text style={{color:'#fff'}}>+</Text></TouchableOpacity>
         </View>
       </View>
-      <View onLayout={e=>setWidth(e.nativeEvent.layout.width)} {...panResponder.panHandlers} style={{ he
+      <View onLayout={e=>setWidth(e.nativeEvent.layout.width)} {...panResponder.panHandlers} style={{ height:30, justifyContent:'center', marginTop:8 }}>
+        <View style={{ height:6, backgroundColor:'#2c2c2e', borderRadius:3, overflow:'hidden' }}>
+          <View style={{ height:'100%', width:`${value}%`, backgroundColor:'#30d158', borderRadius:3 }} />
+        </View>
+        <View style={{ position:'absolute', left:`${value}%`, marginLeft:-10, width:20, height:20, borderRadius:10, backgroundColor:'#fff', borderWidth:2, borderColor:'#30d158', top:5 }} />
+      </View>
+      <View style={{ flexDirection:'row', justifyContent:'space-between', marginTop:2 }}>
+        <Text style={{color:'#636366', fontSize:10}}>0</Text>
+        <Text style={{color:'#636366', fontSize:10}}>100</Text>
+      </View>
+    </View>
+  );
+}
+
+export default function App(){
+  const [selectedSymbol, setSelectedSymbol] = useState<SymbolId>('XAUUSD');
+  const [selectedTF, setSelectedTF] = useState<Timeframe>('15m');
+  const [activeTab, setActiveTab] = useState<'Chart'|'Setups'|'Scanner'|'Live'>('Chart');
+  const [signals, setSignals] = useState<Signal[]>([]);
+  const [candles, setCandles] = useState<Candle[]>([]);
+  const [srLevels, setSrLevels] = useState<SRLevel[]>([]);
+  const [prices, setPrices] = useState<Record<string,{price:number, change:number, changePercent:number}>>({});
+  const [loading, setLoading] = useState(false);
+  const [selectedSignal, setSelectedSignal] = useState<Signal|undefined>();
+  const [showAlerts, setShowAlerts] = useState(false);
+  const [settings, setSettings] = useState({
+    pushEnabled: true, soundEnabled: true, minQuality: 74,
+    strategies: { harmonic: true, wolfe: true, sr: true },
+    timeframes: { '15m': true, '30m': true, '1h': true },
+    markets: { US30: true, US100: true, XAUUSD: true, XAGUSD: true, GBPUSD: true, EURUSD: true, OILCASH: true }
+  });
+
+  useEffect(()=>{ (async()=>{ await Notifications.requestPermissionsAsync(); })(); },[]);
+
+  const fetchAllPrices = useCallback(async()=>{
+    const newPrices: any = {};
+    for (const s of SYMBOLS) {
+      try {
+        const cs = await fetchCandles(s.yahoo, 60);
+        const last = cs[cs.length-1].close;
+        const prev = cs[cs.length-2]?.close || last;
+        newPrices[s.id] = { price:last, change:last-prev, changePercent:((last-prev)/prev)*100 };
+      } catch {}
+    }
+    setPrices(prev=>({...prev, ...newPrices}));
+  },[]);
+
+  const runFullScan = useCallback(async()=>{
+    setLoading(true);
+    try {
+      const all: Signal[
