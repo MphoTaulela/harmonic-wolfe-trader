@@ -3,14 +3,16 @@
     "name": "MERIDIAN",
     "slug": "harmonic-wolfe-trader-t1sqxsgj8a0zkt85oezpf",
     "owner": "mphotaulela",
-    "version": "3.0.1",
+    "version": "3.0.2",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "splash": {
       "backgroundColor": "#0a0a0a",
       "resizeMode": "contain"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true
     },
