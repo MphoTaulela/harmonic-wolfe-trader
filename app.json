@@ -3,7 +3,7 @@
     "name": "MERIDIAN",
     "slug": "harmonic-wolfe-trader-t1sqxsgj8a0zkt85oezpf",
     "owner": "mphotaulela",
-    "version": "4.0.0",
+    "version": "4.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "splash": {
@@ -19,24 +19,9 @@
     "android": {
       "package": "com.mphotaulela.meridian",
       "permissions": [
-        "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.WAKE_LOCK",
-        "android.permission.VIBRATE",
-        "android.permission.FOREGROUND_SERVICE",
         "android.permission.POST_NOTIFICATIONS"
-      ],
-      "adaptiveIcon": {
-        "backgroundColor": "#0a0a0a"
-      }
-    },
-    "plugins": [
-      [
-        "expo-notifications",
-        {
-          "color": "#0a0a0a"
-        }
       ]
-    ],
+    },
     "extra": {
       "eas": {
         "projectId": "bc7f87c0-af6a-4583-9468-67f13dff79e5"
