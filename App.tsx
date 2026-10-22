@@ -5,6 +5,7 @@ import { WebView } from 'react-native-webview';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({ shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: false, shouldShowBanner: true, shouldShowList: true }),
@@ -21,64 +22,50 @@ const SYMBOLS = [
 ];
 
 const TIMEFRAMES = ['15m','30m','1h','4h'];
-
-function tfMinutes(tf) {
+function tfMins(tf) {
   if (tf==='15m') return 15;
   if (tf==='30m') return 30;
   if (tf==='1h') return 60;
-  if (tf==='4h') return 240;
-  return 15;
+  return 240;
 }
-function tfMaxAge(tf) {
+function tfAge(tf) {
   if (tf==='15m') return 2*60*60*1000;
   if (tf==='30m') return 4*60*60*1000;
   if (tf==='1h') return 8*60*60*1000;
-  if (tf==='4h') return 24*60*60*1000;
-  return 2*60*60*1000;
+  return 24*60*60*1000;
 }
-function getDecimals(id) {
+function getDec(id) {
   for (let i=0;i<SYMBOLS.length;i++) { if (SYMBOLS[i].id===id) return SYMBOLS[i].decimals; }
   return 2;
 }
-function formatPriceFull(price, symbolId) {
-  return price.toFixed(getDecimals(symbolId));
-}
-function formatTimeAgo(ts) {
-  const diff = Date.now() - ts;
-  const m = Math.floor(diff/60000);
+function fmtPrice(p, id) { return p.toFixed(getDec(id)); }
+function timeAgo(ts) {
+  const d = Date.now() - ts;
+  const m = Math.floor(d/60000);
   if (m<1) return 'just now';
   if (m<60) return m+'m ago';
   const h = Math.floor(m/60);
   if (h<24) return h+'h ago';
   return Math.floor(h/24)+'d ago';
 }
-function getPatternLabels(points) {
-  if (!points || points.length===0) return '';
-  let s = '';
-  for (let i=0;i<points.length;i++) {
-    s += points[i].label;
-    if (i < points.length-1) s += ' - ';
-  }
-  return s;
-}
 
-function getChartHtml(candles, signal) {
+function chartHtml(candles, sig) {
   const levels = [];
-  if (signal) {
-    levels.push({ price: signal.entry, color: '#ffffff', title: 'ENTRY ' + formatPriceFull(signal.entry, signal.symbol) });
-    levels.push({ price: signal.stop, color: '#ff3b30', title: 'SL ' + formatPriceFull(signal.stop, signal.symbol) });
-    levels.push({ price: signal.tp1, color: '#30d158', title: 'TP1 ' + formatPriceFull(signal.tp1, signal.symbol) });
-    if (signal.tp2) levels.push({ price: signal.tp2, color: '#30d158', title: 'TP2 ' + formatPriceFull(signal.tp2, signal.symbol) });
+  if (sig) {
+    levels.push({ price: sig.entry, color: '#ffffff', title: 'ENTRY ' + fmtPrice(sig.entry, sig.symbol) });
+    levels.push({ price: sig.stop, color: '#ff3b30', title: 'SL ' + fmtPrice(sig.stop, sig.symbol) });
+    levels.push({ price: sig.tp1, color: '#30d158', title: 'TP1 ' + fmtPrice(sig.tp1, sig.symbol) });
+    if (sig.tp2) levels.push({ price: sig.tp2, color: '#30d158', title: 'TP2 ' + fmtPrice(sig.tp2, sig.symbol) });
   }
   const cStr = JSON.stringify(candles);
   const lStr = JSON.stringify(levels);
-  const pStr = JSON.stringify(signal && signal.patternPoints ? signal.patternPoints : []);
+  const pStr = JSON.stringify(sig && sig.patternPoints ? sig.patternPoints : []);
   let html = '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#0e0e10}#c{width:100vw;height:100vh}</style><script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script></head><body><div id="c"></div><script>';
   html += 'const candles='+cStr+';const levels='+lStr+';const pattern='+pStr+';';
-  html += 'const chart=LightweightCharts.createChart(document.getElementById("c"),{layout:{background:{color:"#0e0e10"},textColor:"#8a8a8e"},grid:{vertLines:{color:"#1c1c1e"},horzLines:{color:"#1c1c1e"}},rightPriceScale:{borderColor:"#2c2c2e"},timeScale:{borderColor:"#2c2c2e"}});';
+  html += 'const chart=LightweightCharts.createChart(document.getElementById("c"),{layout:{background:{color:"#0e0e10"},textColor:"#8a8a8e"},grid:{vertLines:{color:"#1c1c1e"},horzLines:{color:"#1c1c1e"}}});';
   html += 'const cs=chart.addCandlestickSeries({upColor:"#30d158",downColor:"#ff453a"});cs.setData(candles);';
-  html += 'levels.forEach(function(l){try{cs.createPriceLine({price:l.price,color:l.color,lineWidth:2,lineStyle:2,axisLabelVisible:true,title:l.title});}catch(e){}});';
-  html += 'if(pattern.length>=2){try{const ls=chart.addLineSeries({color:"#0a84ff",lineWidth:2});ls.setData(pattern.map(function(p){return{time:p.time,value:p.price}}));cs.setMarkers(pattern.map(function(p){return{time:p.time,position:"aboveBar",color:"#0a84ff",shape:"circle",text:p.label}}));}catch(e){}}';
+  html += 'for(let i=0;i<levels.length;i++){try{const l=levels[i];cs.createPriceLine({price:l.price,color:l.color,lineWidth:l.title.indexOf("ENTRY")>=0?2:1,lineStyle:l.title.indexOf("ENTRY")>=0?0:2,axisLabelVisible:true,title:l.title});}catch(e){}}';
+  html += 'if(pattern.length>=2){try{const first=pattern[0].label;const col=(first==="1"||first==="2")?"#af52de":"#0a84ff";const ls=chart.addLineSeries({color:col,lineWidth:2});const arr=[];for(let i=0;i<pattern.length;i++){arr.push({time:pattern[i].time,value:pattern[i].price});}ls.setData(arr);const marks=[];for(let i=0;i<pattern.length;i++){marks.push({time:pattern[i].time,position:"aboveBar",color:col,shape:"circle",text:pattern[i].label});}cs.setMarkers(marks);}catch(e){}}';
   html += 'chart.timeScale().fitContent();</script></body></html>';
   return html;
 }
@@ -93,162 +80,157 @@ async function fetchRaw(ticker, mins) {
     if (mins>=240) range='20d';
     const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(ticker) + '?interval=' + interval + '&range=' + range;
     const res = await fetch(url);
-    const json = await res.json();
-    const result = json.chart.result[0];
+    const js = await res.json();
+    const result = js.chart.result[0];
     const ts = result.timestamp;
     const q = result.indicators.quote[0];
-    const candles = [];
-    for (let i=0;i<ts.length;i++) { if (q.open[i]!=null) candles.push({ time:ts[i], open:q.open[i], high:q.high[i], low:q.low[i], close:q.close[i] }); }
-    return candles;
-  } catch {
+    const out = [];
+    for (let i=0;i<ts.length;i++) { if (q.open[i]!=null) out.push({ time: ts[i], open: q.open[i], high: q.high[i], low: q.low[i], close: q.close[i] }); }
+    return out;
+  } catch (e) {
     let price = 43000;
     if (ticker.indexOf('^NDX')>=0) price=23500;
-    else if (ticker.indexOf('GBP')>=0) price=1.32460;
-    else if (ticker.indexOf('EUR')>=0) price=1.08200;
-    else if (ticker.indexOf('GC')>=0) price=4321.20;
+    else if (ticker.indexOf('GBP')>=0) price=1.3246;
+    else if (ticker.indexOf('EUR')>=0) price=1.082;
+    else if (ticker.indexOf('GC')>=0) price=4321.2;
     else if (ticker.indexOf('SI')>=0) price=31.5;
     else if (ticker.indexOf('CL')>=0) price=78.4;
     const now = Math.floor(Date.now()/1000);
-    const candles = [];
+    const out = [];
     let p = price;
     for (let i=300;i>=0;i--) {
-      const ch=(Math.random()-0.5)*0.004*p;
-      const o=p; p+=ch;
-      const h=Math.max(o,p)+Math.random()*p*0.001;
-      const l=Math.min(o,p)-Math.random()*p*0.001;
-      candles.push({time:now-i*mins*60,open:o,high:h,low:l,close:p});
+      const ch = (Math.random()-0.5)*0.004*p;
+      const o = p; p = p+ch;
+      const h = Math.max(o,p)+Math.random()*p*0.001;
+      const l = Math.min(o,p)-Math.random()*p*0.001;
+      out.push({ time: now-i*mins*60, open: o, high: h, low: l, close: p });
     }
-    return candles;
+    return out;
   }
 }
 
-async function fetchCandles(ticker, mins) {
+async function fetchC(ticker, mins) {
   const raw = await fetchRaw(ticker, mins);
   if (mins===240) {
     const agg = [];
     for (let i=0;i<raw.length;i+=4) {
       const slice = raw.slice(i,i+4);
       if (slice.length<4) continue;
-      let high=slice[0].high, low=slice[0].low;
-      for (let j=1;j<slice.length;j++) { if (slice[j].high>high) high=slice[j].high; if (slice[j].low<low) low=slice[j].low; }
-      agg.push({ time:slice[0].time, open:slice[0].open, high:high, low:low, close:slice[slice.length-1].close });
+      let hi = slice[0].high, lo = slice[0].low;
+      for (let j=1;j<slice.length;j++) { if (slice[j].high>hi) hi=slice[j].high; if (slice[j].low<lo) lo=slice[j].low; }
+      agg.push({ time: slice[0].time, open: slice[0].open, high: hi, low: lo, close: slice[slice.length-1].close });
     }
     return agg.slice(-200);
   }
   return raw.slice(-300);
 }
 
-function findPivots(candles) {
-  const pivots = [];
+function pivots(candles) {
+  const out = [];
   const lb=5;
   for (let i=lb;i<candles.length-lb;i++) {
-    const slice = candles.slice(i-lb,i+lb+1);
-    let maxH=slice[0].high, minL=slice[0].low;
-    for (let j=1;j<slice.length;j++) { if (slice[j].high>maxH) maxH=slice[j].high; if (slice[j].low<minL) minL=slice[j].low; }
-    if (candles[i].high===maxH) pivots.push({time:candles[i].time, price:candles[i].high, type:'high', index:i});
-    if (candles[i].low===minL) pivots.push({time:candles[i].time, price:candles[i].low, type:'low', index:i});
+    const sl = candles.slice(i-lb,i+lb+1);
+    let maxH = sl[0].high, minL = sl[0].low;
+    for (let j=1;j<sl.length;j++) { if (sl[j].high>maxH) maxH=sl[j].high; if (sl[j].low<minL) minL=sl[j].low; }
+    if (candles[i].high===maxH) out.push({ time: candles[i].time, price: candles[i].high, type: 'high', index: i });
+    if (candles[i].low===minL) out.push({ time: candles[i].time, price: candles[i].low, type: 'low', index: i });
   }
-  pivots.sort(function(a,b){return a.index-b.index;});
-  return pivots;
+  out.sort(function(a,b){return a.index-b.index;});
+  return out;
 }
 
-function isActive(signal, currentPrice, now) {
-  if (now - signal.time > tfMaxAge(signal.timeframe)) return false;
-  if (currentPrice) {
-    const risk = Math.abs(signal.entry - signal.stop);
+function active(sig, cur, now) {
+  if (now - sig.time > tfAge(sig.timeframe)) return false;
+  if (cur) {
+    const risk = Math.abs(sig.entry - sig.stop);
     if (risk>0) {
-      const dist = Math.abs(currentPrice - signal.entry)/risk;
+      const dist = Math.abs(cur - sig.entry)/risk;
       if (dist>1.8) return false;
-      if (signal.type==='BUY' && currentPrice < signal.stop) return false;
-      if (signal.type==='SELL' && currentPrice > signal.stop) return false;
+      if (sig.type==='BUY' && cur < sig.stop) return false;
+      if (sig.type==='SELL' && cur > sig.stop) return false;
     }
   }
   return true;
 }
 
-async function analyzeSymbol(symbol, timeframe, minQ, prices) {
-  let meta=null;
-  for (let i=0;i<SYMBOLS.length;i++) { if (SYMBOLS[i].id===symbol) meta=SYMBOLS[i]; }
-  const mins=tfMinutes(timeframe);
-  const candles=await fetchCandles(meta.yahoo, mins);
-  const lastClose=candles[candles.length-1].close;
-  const pivots=findPivots(candles);
-  const now=Date.now();
-  let curPrice=null;
-  if (prices[symbol]) curPrice=prices[symbol].price;
-  const signals=[];
+async function analyze(sym, tf, minQ, prices) {
+  let meta = null;
+  for (let i=0;i<SYMBOLS.length;i++) { if (SYMBOLS[i].id===sym) { meta=SYMBOLS[i]; break; } }
+  const mins = tfMins(tf);
+  const candles = await fetchC(meta.yahoo, mins);
+  const lastClose = candles[candles.length-1].close;
+  const pvs = pivots(candles);
+  const now = Date.now();
+  const cur = prices[sym] ? prices[sym].price : null;
+  const signals = [];
 
-  if (pivots.length>=5) {
-    const last=pivots.slice(-15);
+  // Harmonic
+  if (pvs.length>=5) {
+    const last = pvs.slice(-15);
     for (let i=0;i<=last.length-5;i++) {
       const X=last[i], A=last[i+1], B=last[i+2], C=last[i+3], D=last[i+4];
       if (!X||!D||X.type===A.type) continue;
       const xa=Math.abs(X.price-A.price); if (xa===0) continue;
-      const near=Math.abs(lastClose-D.price)/D.price<0.025; if (!near) continue;
+      if (Math.abs(lastClose-D.price)/D.price>=0.025) continue;
       const isBull=D.price<C.price;
       const entry=D.price, stop=isBull?entry*0.992:entry*1.008, tp1=isBull?entry+xa*0.382:entry-xa*0.382, tp2=isBull?entry+xa*0.618:entry-xa*0.618;
-      const q=Math.round((0.70+Math.random()*0.25)*100); if (q<minQ) continue;
+      const q=Math.round((0.7+Math.random()*0.25)*100); if (q<minQ) continue;
       const pts=[{time:X.time,price:X.price,label:'X'},{time:A.time,price:A.price,label:'A'},{time:B.time,price:B.price,label:'B'},{time:C.time,price:C.price,label:'C'},{time:D.time,price:D.price,label:'D'}];
-      signals.push({id:symbol+'-'+timeframe+'-H-'+now+'-'+i, symbol:symbol, timeframe:timeframe, type:isBull?'BUY':'SELL', strategy:'Harmonic', patternName:'Gartley', entry:entry, stop:stop, tp1:tp1, tp2:tp2, qScore:q, rr:'1.6R', description:(isBull?'Bullish ':'Bearish ')+'Gartley', time:now, patternPoints:pts});
+      signals.push({id:sym+'-'+tf+'-H-'+now+'-'+i, symbol:sym, timeframe:tf, type:isBull?'BUY':'SELL', strategy:'Harmonic', patternName:'Gartley', entry:entry, stop:stop, tp1:tp1, tp2:tp2, qScore:q, rr:'1.6R', description:(isBull?'Bullish ':'Bearish ')+'Gartley', time:now, patternPoints:pts});
     }
   }
-
-  if (pivots.length>=5) {
-    const sorted=pivots.slice(-20);
+  // Wolfe
+  if (pvs.length>=5) {
+    const sorted=pvs.slice(-20);
     for (let i=0;i<=sorted.length-5;i++) {
       const p1=sorted[i], p2=sorted[i+1], p3=sorted[i+2], p4=sorted[i+3], p5=sorted[i+4];
       if (!p1||!p5||p1.type===p2.type) continue;
       const bullish=p1.type==='high'&&p2.type==='low'&&p3.price>p1.price&&p4.price<p2.price&&p5.price<p4.price;
       const bearish=p1.type==='low'&&p2.type==='high'&&p3.price<p1.price&&p4.price>p2.price&&p5.price>p4.price;
       if ((bullish||bearish)&&(p5.index-p1.index)<100) {
-        const near=Math.abs(lastClose-p5.price)/p5.price<0.018; if(!near) continue;
+        if (Math.abs(lastClose-p5.price)/p5.price>=0.018) continue;
         const entry=p5.price, stop=bullish?entry*0.991:entry*1.009, tp1=bullish?entry*1.008:entry*0.992;
-        const q=Math.round((0.75+Math.random()*0.20)*100); if(q<minQ) continue;
+        const q=Math.round((0.75+Math.random()*0.2)*100); if (q<minQ) continue;
         const pts=[{time:p1.time,price:p1.price,label:'1'},{time:p2.time,price:p2.price,label:'2'},{time:p3.time,price:p3.price,label:'3'},{time:p4.time,price:p4.price,label:'4'},{time:p5.time,price:p5.price,label:'5'}];
-        signals.push({id:symbol+'-'+timeframe+'-W-'+now+'-'+i, symbol:symbol, timeframe:timeframe, type:bullish?'BUY':'SELL', strategy:'Wolfe', patternName:'Wolfe 5', entry:entry, stop:stop, tp1:tp1, qScore:q, rr:'2.1R', description:(bullish?'Bullish ':'Bearish ')+'Wolfe Wave', time:now, patternPoints:pts});
+        signals.push({id:sym+'-'+tf+'-W-'+now+'-'+i, symbol:sym, timeframe:tf, type:bullish?'BUY':'SELL', strategy:'Wolfe', patternName:'Wolfe 5', entry:entry, stop:stop, tp1:tp1, qScore:q, rr:'2.1R', description:(bullish?'Bullish ':'Bearish ')+'Wolfe Wave', time:now, patternPoints:pts});
       }
     }
   }
-
+  // Order Block
   for (let i=candles.length-10;i<candles.length-3;i++) {
     const c=candles[i], n1=candles[i+1], n2=candles[i+2];
     if (!c||!n1||!n2) continue;
-    const bullOB=c.close<c.open && n1.close>n1.open && n2.close>n1.open && (n2.close-c.low)/c.low>0.004;
-    const bearOB=c.close>c.open && n1.close<n1.open && n2.close<n1.open && (c.high-n2.close)/c.high>0.004;
-    const nearBull=bullOB && Math.abs(lastClose-c.low)/c.low<0.008;
-    const nearBear=bearOB && Math.abs(lastClose-c.high)/c.high<0.008;
+    const bull=c.close<c.open && n1.close>n1.open && n2.close>n1.open && (n2.close-c.low)/c.low>0.004;
+    const bear=c.close>c.open && n1.close<n1.open && n2.close<n1.open && (c.high-n2.close)/c.high>0.004;
+    const nearBull=bull && Math.abs(lastClose-c.low)/c.low<0.008;
+    const nearBear=bear && Math.abs(lastClose-c.high)/c.high<0.008;
     if (nearBull||nearBear) {
       const entry=nearBull?c.high:c.low, stop=nearBull?c.low*0.997:c.high*1.003, tp1=nearBull?entry*1.008:entry*0.992;
       const q=Math.round((0.78+Math.random()*0.17)*100); if(q<minQ) continue;
-      signals.push({id:symbol+'-'+timeframe+'-OB-'+now+'-'+i, symbol:symbol, timeframe:timeframe, type:nearBull?'BUY':'SELL', strategy:'Order Block', patternName:nearBull?'Bullish OB':'Bearish OB', entry:entry, stop:stop, tp1:tp1, qScore:q, rr:'1.8R', description:(nearBull?'Bullish':'Bearish')+' Order Block ICT', time:now, patternPoints:[{time:c.time,price:c.low,label:'OB'},{time:n2.time,price:nearBull?c.high:c.low,label:'MIT'}]});
+      signals.push({id:sym+'-'+tf+'-OB-'+now+'-'+i, symbol:sym, timeframe:tf, type:nearBull?'BUY':'SELL', strategy:'Order Block', patternName:nearBull?'Bullish OB':'Bearish OB', entry:entry, stop:stop, tp1:tp1, qScore:q, rr:'1.8R', description:(nearBull?'Bullish':'Bearish')+' Order Block', time:now, patternPoints:[{time:c.time,price:c.low,label:'OB'},{time:n2.time,price:nearBull?c.high:c.low,label:'MIT'}]});
       break;
     }
   }
-
+  // FVG
   for (let i=candles.length-6;i<candles.length-2;i++) {
     const c1=candles[i-1], c2=candles[i], c3=candles[i+1];
     if (!c1||!c2||!c3) continue;
-    const bullFVG=c3.low>c1.high;
-    const bearFVG=c3.high<c1.low;
-    let gap=0;
-    if (bullFVG) gap=(c3.low-c1.high)/c1.high;
-    else if (bearFVG) gap=(c1.low-c3.high)/c1.low;
-    if ((bullFVG||bearFVG) && gap>0.0008 && gap<0.015) {
-      const near=Math.abs(lastClose-(bullFVG?c1.high:c1.low))/lastClose<0.01;
-      if (!near) continue;
-      const entry=bullFVG?c1.high+(c3.low-c1.high)*0.5:c1.low-(c1.low-c3.high)*0.5;
-      const stop=bullFVG?c1.high*0.997:c1.low*1.003;
-      const tp1=bullFVG?entry*1.007:entry*0.993;
-      const q=Math.round((0.80+Math.random()*0.15)*100); if(q<minQ) continue;
-      signals.push({id:symbol+'-'+timeframe+'-FVG-'+now+'-'+i, symbol:symbol, timeframe:timeframe, type:bullFVG?'BUY':'SELL', strategy:'FVG', patternName:bullFVG?'Bullish FVG':'Bearish FVG', entry:entry, stop:stop, tp1:tp1, qScore:q, rr:'2.0R', description:(bullFVG?'Bullish':'Bearish')+' Fair Value Gap', time:now, patternPoints:[{time:c1.time,price:c1.high,label:'FVG'},{time:c3.time,price:c3.low,label:'Fill'}]});
+    const bull=c3.low>c1.high, bear=c3.high<c1.low;
+    let gap=0; if (bull) gap=(c3.low-c1.high)/c1.high; else if (bear) gap=(c1.low-c3.high)/c1.low;
+    if ((bull||bear) && gap>0.0008 && gap<0.015) {
+      if (Math.abs(lastClose-(bull?c1.high:c1.low))/lastClose>=0.01) continue;
+      const entry=bull?c1.high+(c3.low-c1.high)*0.5:c1.low-(c1.low-c3.high)*0.5;
+      const stop=bull?c1.high*0.997:c1.low*1.003, tp1=bull?entry*1.007:entry*0.993;
+      const q=Math.round((0.8+Math.random()*0.15)*100); if(q<minQ) continue;
+      signals.push({id:sym+'-'+tf+'-FVG-'+now+'-'+i, symbol:sym, timeframe:tf, type:bull?'BUY':'SELL', strategy:'FVG', patternName:bull?'Bullish FVG':'Bearish FVG', entry:entry, stop:stop, tp1:tp1, qScore:q, rr:'2.0R', description:(bull?'Bullish':'Bearish')+' FVG', time:now, patternPoints:[{time:c1.time,price:c1.high,label:'FVG'},{time:c3.time,price:c3.low,label:'Fill'}]});
       break;
     }
   }
 
-  const filtered=[];
-  for (let i=0;i<signals.length;i++) { if (isActive(signals[i], curPrice, now)) filtered.push(signals[i]); }
-  filtered.sort(function(a,b){return b.qScore-a.qScore;});
-  return { signals: filtered.slice(0,2), candles: candles };
+  const out=[];
+  for (let i=0;i<signals.length;i++) { if (active(signals[i], cur, now)) out.push(signals[i]); }
+  out.sort(function(a,b){return b.qScore-a.qScore;});
+  return { signals: out.slice(0,2), candles: candles };
 }
 
 export default function App(){
@@ -266,49 +248,56 @@ export default function App(){
 
   useEffect(function(){
     (async function(){
-      try { await Notifications.requestPermissionsAsync(); } catch {}
+      try { const saved=await AsyncStorage.getItem('minQuality'); if(saved) setMinQuality(parseInt(saved)); } catch(e){}
+      try { await Notifications.requestPermissionsAsync(); } catch(e){}
     })();
   },[]);
 
-  const fetchAllPrices = useCallback(async function(){
-    const newPrices = {};
+  useEffect(function(){ AsyncStorage.setItem('minQuality', String(minQuality)); },[minQuality]);
+
+  const fetchPrices = useCallback(async function(){
+    const np={};
     for (let i=0;i<SYMBOLS.length;i++) {
       const s=SYMBOLS[i];
       try {
-        const cs = await fetchCandles(s.yahoo, 60);
-        const last = cs[cs.length-1].close;
-        const prev = cs[cs.length-2] ? cs[cs.length-2].close : last;
-        newPrices[s.id] = { price:last, change:last-prev, changePercent:((last-prev)/prev)*100 };
-      } catch {}
+        const cs=await fetchC(s.yahoo, 60);
+        const last=cs[cs.length-1].close;
+        const prev=cs[cs.length-2]?cs[cs.length-2].close:last;
+        np[s.id]={ price:last, change:last-prev, changePercent:((last-prev)/prev)*100 };
+      } catch(e){}
     }
-    setPrices(function(prev){ const copy={}; for (let k in prev) copy[k]=prev[k]; for (let k in newPrices) copy[k]=newPrices[k]; return copy; });
+    setPrices(function(prev){
+      const copy={}; for (let k in prev) copy[k]=prev[k]; for (let k in np) copy[k]=np[k]; return copy;
+    });
   },[]);
 
-  const runFullScan = useCallback(async function(){
+  const runScan = useCallback(async function(){
     setLoading(true);
     try {
       const all=[];
       const keys=Object.keys(markets);
-      for (let k=0;k<keys.length;k++) {
-        if (!markets[keys[k]]) continue;
-        const sym=keys[k];
-        for (let t=0;t<TIMEFRAMES.length;t++) {
-          const tf=TIMEFRAMES[t];
-          const res = await analyzeSymbol(sym, tf, minQuality, prices);
-          for (let s=0;s<res.signals.length;s++) all.push(res.signals[s]);
+      for (let ki=0;ki<keys.length;ki++) {
+        const sym=keys[ki];
+        if (!markets[sym]) continue;
+        for (let ti=0;ti<TIMEFRAMES.length;ti++) {
+          const tf=TIMEFRAMES[ti];
+          const r=await analyze(sym, tf, minQuality, prices);
+          for (let si=0;si<r.signals.length;si++) all.push(r.signals[si]);
         }
       }
       const now=Date.now();
       const fresh=[];
-      for (let i=0;i<all.length;i++) { if (isActive(all[i], prices[all[i].symbol] ? prices[all[i].symbol].price : null, now)) fresh.push(all[i]); }
+      for (let i=0;i<all.length;i++) {
+        const cur=prices[all[i].symbol]?prices[all[i].symbol].price:null;
+        if (active(all[i], cur, now)) fresh.push(all[i]);
+      }
       fresh.sort(function(a,b){return b.qScore-a.qScore;});
       const sorted=fresh.slice(0,50);
       setSignals(sorted);
       if (sorted.length>0 && sorted[0].qScore>=minQuality) {
         const top=sorted[0];
-        const bodyText = top.description + ' ENTRY ' + formatPriceFull(top.entry, top.symbol) + ' SL ' + formatPriceFull(top.stop, top.symbol) + ' TP ' + formatPriceFull(top.tp1, top.symbol) + ' ' + top.timeframe + ' ' + formatTimeAgo(top.time);
         await Notifications.scheduleNotificationAsync({
-          content: { title: top.symbol+' '+top.type+' Q'+top.qScore+' '+top.strategy, body: bodyText, sound: true },
+          content: { title: top.symbol+' '+top.type+' Q'+top.qScore+' • '+top.strategy, body: top.description+' ENTRY '+fmtPrice(top.entry, top.symbol)+' SL '+fmtPrice(top.stop, top.symbol)+' TP '+fmtPrice(top.tp1, top.symbol)+' • '+top.timeframe, sound:true },
           trigger: null,
         });
       }
@@ -318,35 +307,22 @@ export default function App(){
   const runChart = useCallback(async function(){
     setLoading(true);
     try {
-      const res = await analyzeSymbol(selectedSymbol, selectedTF, minQuality, prices);
-      setCandles(res.candles);
-      if (res.signals.length>0) setSelectedSignal(res.signals[0]);
-      else setSelectedSignal(null);
+      const r=await analyze(selectedSymbol, selectedTF, minQuality, prices);
+      setCandles(r.candles);
+      if (r.signals.length>0) setSelectedSignal(r.signals[0]); else setSelectedSignal(null);
     } finally { setLoading(false); }
   },[selectedSymbol, selectedTF, minQuality, prices]);
 
-  useEffect(function(){ fetchAllPrices(); const id=setInterval(fetchAllPrices, 15000); return function(){ clearInterval(id); }; },[fetchAllPrices]);
+  useEffect(function(){ fetchPrices(); const id=setInterval(fetchPrices, 15000); return function(){ clearInterval(id); }; },[fetchPrices]);
   useEffect(function(){ runChart(); },[selectedSymbol, selectedTF]);
-  useEffect(function(){ runFullScan(); const id=setInterval(runFullScan, 90000); return function(){ clearInterval(id); }; },[runFullScan]);
+  useEffect(function(){ runScan(); const id=setInterval(runScan, 90000); return function(){ clearInterval(id); }; },[runScan]);
 
-  const chartHtml = getChartHtml(candles.length?candles:[{time:Math.floor(Date.now()/1000),open:100,high:101,low:99,close:100}], selectedSignal);
+  const html = chartHtml(candles.length?candles:[{time:Math.floor(Date.now()/1000),open:100,high:101,low:99,close:100}], selectedSignal);
   const now=Date.now();
-  const active=[];
-  for (let i=0;i<signals.length;i++) { if (isActive(signals[i], prices[signals[i].symbol] ? prices[signals[i].symbol].price : null, now)) active.push(signals[i]); }
-
-  let currentFullName='';
-  for (let i=0;i<SYMBOLS.length;i++) { if (SYMBOLS[i].id===selectedSymbol) currentFullName=SYMBOLS[i].fullName; }
-  const currentPriceStr = prices[selectedSymbol] ? formatPriceFull(prices[selectedSymbol].price, selectedSymbol) : '--';
-
-  let detailEntry='', detailStop='', detailTP='', detailLabels='', detailQ='', detailRR='', detailTime='';
-  if (selectedSignal) {
-    detailEntry = formatPriceFull(selectedSignal.entry, selectedSignal.symbol);
-    detailStop = formatPriceFull(selectedSignal.stop, selectedSignal.symbol);
-    detailTP = formatPriceFull(selectedSignal.tp1, selectedSignal.symbol);
-    detailLabels = getPatternLabels(selectedSignal.patternPoints);
-    detailQ = 'Q' + selectedSignal.qScore;
-    detailRR = selectedSignal.rr;
-    detailTime = formatTimeAgo(selectedSignal.time);
+  const activeList=[];
+  for (let i=0;i<signals.length;i++) {
+    const cur=prices[signals[i].symbol]?prices[signals[i].symbol].price:null;
+    if (active(signals[i], cur, now)) activeList.push(signals[i]);
   }
 
   return (
@@ -355,14 +331,13 @@ export default function App(){
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>MERIDIAN</Text>
-          <TouchableOpacity style={styles.bellBtn} onPress={function(){setShowAlerts(true);}}><Text style={styles.bellIcon}>BELL</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.bellBtn} onPress={function(){setShowAlerts(true);}}><Text style={styles.bellIcon}>🔔</Text></TouchableOpacity>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tickerRow}>
           {SYMBOLS.map(function(s){
             const p=prices[s.id];
-            const priceStr=p?formatPriceFull(p.price, s.id):'--';
-            let changeStr='';
-            if (p) { const sign = p.changePercent>=0 ? '+' : ''; changeStr = sign + p.changePercent.toFixed(2) + '%'; }
+            const priceStr=p?fmtPrice(p.price, s.id):'--';
+            const changeStr=p?(p.changePercent>=0?'+':'')+p.changePercent.toFixed(2)+'%':'';
             const isPos=p?p.changePercent>=0:true;
             return (
               <TouchableOpacity key={s.id} style={[styles.tickerCard, selectedSymbol===s.id && styles.tickerActive]} onPress={function(){setSelectedSymbol(s.id);}}>
@@ -383,5 +358,17 @@ export default function App(){
         </View>
         <View style={styles.main}>
           {activeTab==='Chart' && (
-            <View style={{flex:1}}>
-              <View style={styles.symb
+            <>
+              <View style={styles.symbolInfo}>
+                <Text style={styles.symbolTitle}>{selectedSymbol} <Text style={styles.symbolFull}>{(function(){for(let i=0;i<SYMBOLS.length;i++){if(SYMBOLS[i].id===selectedSymbol) return SYMBOLS[i].fullName;} return '';})()}</Text></Text>
+                <Text style={styles.symbolPrice}>{prices[selectedSymbol]?fmtPrice(prices[selectedSymbol].price, selectedSymbol):'--'}</Text>
+              </View>
+              <View style={styles.chartWrap}>
+                <WebView originWhitelist={['*']} source={{ html: html }} style={{ flex:1, backgroundColor:'#0e0e10' }} javaScriptEnabled />
+              </View>
+              {selectedSignal && (
+                <View style={styles.signalDetailBar}>
+                  <View style={styles.detailCol}><Text style={styles.detailLabel}>ENTRY</Text><Text style={styles.detailValue}>{fmtPrice(selectedSignal.entry, selectedSignal.symbol)}</Text></View>
+                  <View style={styles.detailCol}><Text style={styles.detailLabel}>STOP</Text><Text style={[styles.detailValue,{color:'#ff3b30'}]}>{fmtPrice(selectedSignal.stop, selectedSignal.symbol)}</Text></View>
+                  <View style={styles.detailCol}><Text style={styles.detailLabel}>TP1</Text><Text style={[styles.detailValue,{color:'#30d158'}]}>{fmtPrice(selectedSignal.tp1, selectedSignal.symbol)}</Text></View>
+                  <View style={styles.detailCol}><Te
