@@ -3,7 +3,7 @@
     "name": "MERIDIAN",
     "slug": "harmonic-wolfe-trader-t1sqxsgj8a0zkt85oezpf",
     "owner": "mphotaulela",
-    "version": "4.1.0",
+    "version": "4.2.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "splash": {
@@ -17,10 +17,7 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.mphotaulela.meridian",
-      "permissions": [
-        "android.permission.POST_NOTIFICATIONS"
-      ]
+      "package": "com.mphotaulela.meridian"
     },
     "extra": {
       "eas": {
