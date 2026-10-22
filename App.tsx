@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Switch, Modal } from 'react-native';
 import { WebView } from 'react-native-webview';
@@ -97,7 +96,8 @@ async function fetchRaw(ticker, mins) {
     else if (ticker.indexOf('CL')>=0) price=78.4;
     const now = Math.floor(Date.now()/1000);
     const out = [];
-    let p = price;    for (let i=300;i>=0;i--) {
+    let p = price;
+    for (let i=300;i>=0;i--) {
       const ch = (Math.random()-0.5)*0.004*p;
       const o = p; p = p+ch;
       const h = Math.max(o,p)+Math.random()*p*0.001;
@@ -196,7 +196,8 @@ async function analyze(sym, tf, minQ, prices) {
     }
   }
   // Order Block
-  for (let i=candles.length-10;i<candles.length-3;i++) {    const c=candles[i], n1=candles[i+1], n2=candles[i+2];
+  for (let i=candles.length-10;i<candles.length-3;i++) {
+    const c=candles[i], n1=candles[i+1], n2=candles[i+2];
     if (!c||!n1||!n2) continue;
     const bull=c.close<c.open && n1.close>n1.open && n2.close>n1.open && (n2.close-c.low)/c.low>0.004;
     const bear=c.close>c.open && n1.close<n1.open && n2.close<n1.open && (c.high-n2.close)/c.high>0.004;
@@ -241,8 +242,7 @@ export default function App(){
   const [loading, setLoading] = useState(false);
   const [selectedSignal, setSelectedSignal] = useState(null);
   const [showAlerts, setShowAlerts] = useState(false);
-  const [minQuality, setMinQuality] = useState(74);
-  const [markets, setMarkets] = useState({ US30:true, US100:true, XAUUSD:true, XAGUSD:true, GBPUSD:true, EURUSD:true, OILCASH:true });
+  const [minQuality, setMinQuality] = useState(74);  const [markets, setMarkets] = useState({ US30:true, US100:true, XAUUSD:true, XAGUSD:true, GBPUSD:true, EURUSD:true, OILCASH:true });
 
   useEffect(function(){
     (async function(){
@@ -295,7 +295,8 @@ export default function App(){
       if (sorted.length>0 && sorted[0].qScore>=minQuality) {
         const top=sorted[0];
         await Notifications.scheduleNotificationAsync({
-          content: { title: top.symbol+' '+top.type+' Q'+top.qScore+' • '+top.strategy, body: top.description+' ENTRY '+fmtPrice(top.entry, top.symbol)+' SL '+fmtPrice(top.stop, top.symbol)+' TP '+fmtPrice(top.tp1, top.symbol)+' • '+top.timeframe, sound:true },          trigger: null,
+          content: { title: top.symbol+' '+top.type+' Q'+top.qScore+' • '+top.strategy, body: top.description+' ENTRY '+fmtPrice(top.entry, top.symbol)+' SL '+fmtPrice(top.stop, top.symbol)+' TP '+fmtPrice(top.tp1, top.symbol)+' • '+top.timeframe, sound:true },
+          trigger: null,
         });
       }
     } finally { setLoading(false); }
@@ -394,7 +395,8 @@ export default function App(){
             </ScrollView>
           )}
         </View>
-        <View style={styles.bottomTabs}>          <TouchableOpacity style={styles.tabBtn} onPress={function(){setActiveTab('Chart');}}><Text style={[styles.tabLabel, activeTab==='Chart'&&styles.tabActive]}>Chart</Text></TouchableOpacity>
+        <View style={styles.bottomTabs}>
+          <TouchableOpacity style={styles.tabBtn} onPress={function(){setActiveTab('Chart');}}><Text style={[styles.tabLabel, activeTab==='Chart'&&styles.tabActive]}>Chart</Text></TouchableOpacity>
           <TouchableOpacity style={styles.tabBtn} onPress={function(){setActiveTab('Setups');}}><Text style={[styles.tabLabel, activeTab==='Setups'&&styles.tabActive]}>Setups {activeList.length}</Text></TouchableOpacity>
         </View>
         <Modal visible={showAlerts} animationType="slide" transparent>
