@@ -21,10 +21,28 @@ const SYMBOLS = [
 ];
 
 const TIMEFRAMES = ['15m','30m','1h','4h'];
-function tfMinutes(tf) { if (tf==='15m') return 15; if (tf==='30m') return 30; if (tf==='1h') return 60; if (tf==='4h') return 240; return 15; }
-function tfMaxAge(tf) { if (tf==='15m') return 2*60*60*1000; if (tf==='30m') return 4*60*60*1000; if (tf==='1h') return 8*60*60*1000; if (tf==='4h') return 24*60*60*1000; return 2*60*60*1000; }
-function getDecimals(id) { const s = SYMBOLS.find(x=>x.id===id); return s ? s.decimals : 2; }
-function formatPriceFull(price, symbolId) { return price.toFixed(getDecimals(symbolId)); }
+
+function tfMinutes(tf) {
+  if (tf==='15m') return 15;
+  if (tf==='30m') return 30;
+  if (tf==='1h') return 60;
+  if (tf==='4h') return 240;
+  return 15;
+}
+function tfMaxAge(tf) {
+  if (tf==='15m') return 2*60*60*1000;
+  if (tf==='30m') return 4*60*60*1000;
+  if (tf==='1h') return 8*60*60*1000;
+  if (tf==='4h') return 24*60*60*1000;
+  return 2*60*60*1000;
+}
+function getDecimals(id) {
+  for (let i=0;i<SYMBOLS.length;i++) { if (SYMBOLS[i].id===id) return SYMBOLS[i].decimals; }
+  return 2;
+}
+function formatPriceFull(price, symbolId) {
+  return price.toFixed(getDecimals(symbolId));
+}
 function formatTimeAgo(ts) {
   const diff = Date.now() - ts;
   const m = Math.floor(diff/60000);
@@ -32,8 +50,16 @@ function formatTimeAgo(ts) {
   if (m<60) return m+'m ago';
   const h = Math.floor(m/60);
   if (h<24) return h+'h ago';
-  const d = Math.floor(h/24);
-  return d+'d ago';
+  return Math.floor(h/24)+'d ago';
+}
+function getPatternLabels(points) {
+  if (!points || points.length===0) return '';
+  let s = '';
+  for (let i=0;i<points.length;i++) {
+    s += points[i].label;
+    if (i < points.length-1) s += ' - ';
+  }
+  return s;
 }
 
 function getChartHtml(candles, signal) {
@@ -44,15 +70,27 @@ function getChartHtml(candles, signal) {
     levels.push({ price: signal.tp1, color: '#30d158', title: 'TP1 ' + formatPriceFull(signal.tp1, signal.symbol) });
     if (signal.tp2) levels.push({ price: signal.tp2, color: '#30d158', title: 'TP2 ' + formatPriceFull(signal.tp2, signal.symbol) });
   }
-  const html = '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#0e0e10}#c{width:100vw;height:100vh}</style><script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script></head><body><div id="c"></div><script>const candles=' + JSON.stringify(candles) + ';const levels=' + JSON.stringify(levels) + ';const pattern=' + JSON.stringify(signal ? signal.patternPoints || [] : []) + ';const chart=LightweightCharts.createChart(document.getElementById("c"),{layout:{background:{color:"#0e0e10"},textColor:"#8a8a8e"},grid:{vertLines:{color:"#1c1c1e"},horzLines:{color:"#1c1c1e"}},rightPriceScale:{borderColor:"#2c2c2e"},timeScale:{borderColor:"#2c2c2e"}});const cs=chart.addCandlestickSeries({upColor:"#30d158",downColor:"#ff453a"});cs.setData(candles);levels.forEach(l=>{try{cs.createPriceLine({price:l.price,color:l.color,lineWidth:l.title.includes("ENTRY")?2:1,lineStyle:l.title.includes("ENTRY")?0:2,axisLabelVisible:true,title:l.title});}catch(e){}});if(pattern.length>=2){try{const col=pattern[0]&&pattern[0].label&&pattern[0].label.startsWith("1")?"#af52de":(pattern.length===5?"#0a84ff":"#ff9f0a");const ls=chart.addLineSeries({color:col,lineWidth:2});ls.setData(pattern.map(p=>({time:p.time,value:p.price})));cs.setMarkers(pattern.map(p=>({time:p.time,position:"aboveBar",color:col,shape:"circle",text:p.label})));}catch(e){}}chart.timeScale().fitContent();</script></body></html>';
+  const cStr = JSON.stringify(candles);
+  const lStr = JSON.stringify(levels);
+  const pStr = JSON.stringify(signal && signal.patternPoints ? signal.patternPoints : []);
+  let html = '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#0e0e10}#c{width:100vw;height:100vh}</style><script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script></head><body><div id="c"></div><script>';
+  html += 'const candles='+cStr+';const levels='+lStr+';const pattern='+pStr+';';
+  html += 'const chart=LightweightCharts.createChart(document.getElementById("c"),{layout:{background:{color:"#0e0e10"},textColor:"#8a8a8e"},grid:{vertLines:{color:"#1c1c1e"},horzLines:{color:"#1c1c1e"}},rightPriceScale:{borderColor:"#2c2c2e"},timeScale:{borderColor:"#2c2c2e"}});';
+  html += 'const cs=chart.addCandlestickSeries({upColor:"#30d158",downColor:"#ff453a"});cs.setData(candles);';
+  html += 'levels.forEach(function(l){try{cs.createPriceLine({price:l.price,color:l.color,lineWidth:2,lineStyle:2,axisLabelVisible:true,title:l.title});}catch(e){}});';
+  html += 'if(pattern.length>=2){try{const ls=chart.addLineSeries({color:"#0a84ff",lineWidth:2});ls.setData(pattern.map(function(p){return{time:p.time,value:p.price}}));cs.setMarkers(pattern.map(function(p){return{time:p.time,position:"aboveBar",color:"#0a84ff",shape:"circle",text:p.label}}));}catch(e){}}';
+  html += 'chart.timeScale().fitContent();</script></body></html>';
   return html;
 }
 
-async function fetchCandlesRaw(ticker, minutes) {
+async function fetchRaw(ticker, mins) {
   try {
-    const map = {15:'15m',30:'30m',60:'60m',240:'60m'};
-    const interval = map[minutes] || '15m';
-    const range = minutes>=240 ? '20d' : '10d';
+    let interval = '15m';
+    if (mins===15) interval='15m';
+    else if (mins===30) interval='30m';
+    else interval='60m';
+    let range = '10d';
+    if (mins>=240) range='20d';
     const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(ticker) + '?interval=' + interval + '&range=' + range;
     const res = await fetch(url);
     const json = await res.json();
@@ -64,28 +102,36 @@ async function fetchCandlesRaw(ticker, minutes) {
     return candles;
   } catch {
     let price = 43000;
-    if (ticker.includes('^NDX')) price=23500;
-    else if (ticker.includes('GBP')) price=1.32460;
-    else if (ticker.includes('EUR')) price=1.08200;
-    else if (ticker.includes('GC')) price=4321.20;
-    else if (ticker.includes('SI')) price=31.5;
-    else if (ticker.includes('CL')) price=78.4;
+    if (ticker.indexOf('^NDX')>=0) price=23500;
+    else if (ticker.indexOf('GBP')>=0) price=1.32460;
+    else if (ticker.indexOf('EUR')>=0) price=1.08200;
+    else if (ticker.indexOf('GC')>=0) price=4321.20;
+    else if (ticker.indexOf('SI')>=0) price=31.5;
+    else if (ticker.indexOf('CL')>=0) price=78.4;
     const now = Math.floor(Date.now()/1000);
     const candles = [];
     let p = price;
-    for (let i=300;i>=0;i--) { const ch=(Math.random()-0.5)*0.004*p; const o=p; p+=ch; const h=Math.max(o,p)+Math.random()*p*0.001; const l=Math.min(o,p)-Math.random()*p*0.001; candles.push({time:now-i*minutes*60,open:o,high:h,low:l,close:p}); }
+    for (let i=300;i>=0;i--) {
+      const ch=(Math.random()-0.5)*0.004*p;
+      const o=p; p+=ch;
+      const h=Math.max(o,p)+Math.random()*p*0.001;
+      const l=Math.min(o,p)-Math.random()*p*0.001;
+      candles.push({time:now-i*mins*60,open:o,high:h,low:l,close:p});
+    }
     return candles;
   }
 }
 
-async function fetchCandles(ticker, minutes) {
-  const raw = await fetchCandlesRaw(ticker, minutes);
-  if (minutes===240) {
+async function fetchCandles(ticker, mins) {
+  const raw = await fetchRaw(ticker, mins);
+  if (mins===240) {
     const agg = [];
     for (let i=0;i<raw.length;i+=4) {
       const slice = raw.slice(i,i+4);
       if (slice.length<4) continue;
-      agg.push({ time:slice[0].time, open:slice[0].open, high:Math.max(...slice.map(c=>c.high)), low:Math.min(...slice.map(c=>c.low)), close:slice[slice.length-1].close });
+      let high=slice[0].high, low=slice[0].low;
+      for (let j=1;j<slice.length;j++) { if (slice[j].high>high) high=slice[j].high; if (slice[j].low<low) low=slice[j].low; }
+      agg.push({ time:slice[0].time, open:slice[0].open, high:high, low:low, close:slice[slice.length-1].close });
     }
     return agg.slice(-200);
   }
@@ -97,12 +143,13 @@ function findPivots(candles) {
   const lb=5;
   for (let i=lb;i<candles.length-lb;i++) {
     const slice = candles.slice(i-lb,i+lb+1);
-    const maxH = Math.max(...slice.map(c=>c.high));
-    const minL = Math.min(...slice.map(c=>c.low));
+    let maxH=slice[0].high, minL=slice[0].low;
+    for (let j=1;j<slice.length;j++) { if (slice[j].high>maxH) maxH=slice[j].high; if (slice[j].low<minL) minL=slice[j].low; }
     if (candles[i].high===maxH) pivots.push({time:candles[i].time, price:candles[i].high, type:'high', index:i});
     if (candles[i].low===minL) pivots.push({time:candles[i].time, price:candles[i].low, type:'low', index:i});
   }
-  return pivots.sort((a,b)=>a.index-b.index);
+  pivots.sort(function(a,b){return a.index-b.index;});
+  return pivots;
 }
 
 function isActive(signal, currentPrice, now) {
@@ -120,89 +167,88 @@ function isActive(signal, currentPrice, now) {
 }
 
 async function analyzeSymbol(symbol, timeframe, minQ, prices) {
-  const meta = SYMBOLS.find(s=>s.id===symbol);
-  const mins = tfMinutes(timeframe);
-  const candles = await fetchCandles(meta.yahoo, mins);
-  const lastClose = candles[candles.length-1].close;
-  const pivots = findPivots(candles);
-  const now = Date.now();
-  const signals = [];
+  let meta=null;
+  for (let i=0;i<SYMBOLS.length;i++) { if (SYMBOLS[i].id===symbol) meta=SYMBOLS[i]; }
+  const mins=tfMinutes(timeframe);
+  const candles=await fetchCandles(meta.yahoo, mins);
+  const lastClose=candles[candles.length-1].close;
+  const pivots=findPivots(candles);
+  const now=Date.now();
+  let curPrice=null;
+  if (prices[symbol]) curPrice=prices[symbol].price;
+  const signals=[];
 
-  // Harmonic
   if (pivots.length>=5) {
-    const last = pivots.slice(-15);
+    const last=pivots.slice(-15);
     for (let i=0;i<=last.length-5;i++) {
-      const pts = last.slice(i,i+5);
-      const [X,A,B,C,D] = pts;
+      const X=last[i], A=last[i+1], B=last[i+2], C=last[i+3], D=last[i+4];
       if (!X||!D||X.type===A.type) continue;
-      const xa = Math.abs(X.price-A.price); if (xa===0) continue;
-      const near = Math.abs(lastClose-D.price)/D.price<0.025;
-      if (!near) continue;
-      const isBull = D.price<C.price;
-      const entry=D.price; const stop=isBull?entry*0.992:entry*1.008; const tp1=isBull?entry+xa*0.382:entry-xa*0.382; const tp2=isBull?entry+xa*0.618:entry-xa*0.618;
-      const q = Math.round((0.70+Math.random()*0.25)*100); if (q<minQ) continue;
-      const patternPoints = [{time:X.time,price:X.price,label:'X'},{time:A.time,price:A.price,label:'A'},{time:B.time,price:B.price,label:'B'},{time:C.time,price:C.price,label:'C'},{time:D.time,price:D.price,label:'D'}];
-      signals.push({id:symbol+'-'+timeframe+'-H-'+now+'-'+i, symbol, timeframe, type:isBull?'BUY':'SELL', strategy:'Harmonic', patternName:'Gartley', entry, stop, tp1, tp2, qScore:q, rr:'1.6R', description:(isBull?'Bullish ':'Bearish ')+'Gartley', time:now, patternPoints});
+      const xa=Math.abs(X.price-A.price); if (xa===0) continue;
+      const near=Math.abs(lastClose-D.price)/D.price<0.025; if (!near) continue;
+      const isBull=D.price<C.price;
+      const entry=D.price, stop=isBull?entry*0.992:entry*1.008, tp1=isBull?entry+xa*0.382:entry-xa*0.382, tp2=isBull?entry+xa*0.618:entry-xa*0.618;
+      const q=Math.round((0.70+Math.random()*0.25)*100); if (q<minQ) continue;
+      const pts=[{time:X.time,price:X.price,label:'X'},{time:A.time,price:A.price,label:'A'},{time:B.time,price:B.price,label:'B'},{time:C.time,price:C.price,label:'C'},{time:D.time,price:D.price,label:'D'}];
+      signals.push({id:symbol+'-'+timeframe+'-H-'+now+'-'+i, symbol:symbol, timeframe:timeframe, type:isBull?'BUY':'SELL', strategy:'Harmonic', patternName:'Gartley', entry:entry, stop:stop, tp1:tp1, tp2:tp2, qScore:q, rr:'1.6R', description:(isBull?'Bullish ':'Bearish ')+'Gartley', time:now, patternPoints:pts});
     }
   }
 
-  // Wolfe Wave
   if (pivots.length>=5) {
-    const sorted = pivots.slice(-20);
+    const sorted=pivots.slice(-20);
     for (let i=0;i<=sorted.length-5;i++) {
-      const [p1,p2,p3,p4,p5]=sorted.slice(i,i+5); if(!p1||!p5) continue;
-      if (p1.type===p2.type) continue;
+      const p1=sorted[i], p2=sorted[i+1], p3=sorted[i+2], p4=sorted[i+3], p5=sorted[i+4];
+      if (!p1||!p5||p1.type===p2.type) continue;
       const bullish=p1.type==='high'&&p2.type==='low'&&p3.price>p1.price&&p4.price<p2.price&&p5.price<p4.price;
       const bearish=p1.type==='low'&&p2.type==='high'&&p3.price<p1.price&&p4.price>p2.price&&p5.price>p4.price;
       if ((bullish||bearish)&&(p5.index-p1.index)<100) {
         const near=Math.abs(lastClose-p5.price)/p5.price<0.018; if(!near) continue;
-        const entry=p5.price; const stop=bullish?entry*0.991:entry*1.009; const tp1=bullish?entry*1.008:entry*0.992;
+        const entry=p5.price, stop=bullish?entry*0.991:entry*1.009, tp1=bullish?entry*1.008:entry*0.992;
         const q=Math.round((0.75+Math.random()*0.20)*100); if(q<minQ) continue;
         const pts=[{time:p1.time,price:p1.price,label:'1'},{time:p2.time,price:p2.price,label:'2'},{time:p3.time,price:p3.price,label:'3'},{time:p4.time,price:p4.price,label:'4'},{time:p5.time,price:p5.price,label:'5'}];
-        signals.push({id:symbol+'-'+timeframe+'-W-'+now+'-'+i, symbol, timeframe, type:bullish?'BUY':'SELL', strategy:'Wolfe', patternName:'Wolfe 5', entry, stop, tp1, qScore:q, rr:'2.1R', description:(bullish?'Bullish ':'Bearish ')+'Wolfe Wave', time:now, patternPoints:pts});
+        signals.push({id:symbol+'-'+timeframe+'-W-'+now+'-'+i, symbol:symbol, timeframe:timeframe, type:bullish?'BUY':'SELL', strategy:'Wolfe', patternName:'Wolfe 5', entry:entry, stop:stop, tp1:tp1, qScore:q, rr:'2.1R', description:(bullish?'Bullish ':'Bearish ')+'Wolfe Wave', time:now, patternPoints:pts});
       }
     }
   }
 
-  // Order Block ICT
   for (let i=candles.length-10;i<candles.length-3;i++) {
-    const c = candles[i]; const next = candles[i+1]; const next2 = candles[i+2];
-    if (!c||!next||!next2) continue;
-    const bullishOB = c.close<c.open && next.close>next.open && next2.close>next.open && (next2.close - c.low)/c.low>0.004;
-    const bearishOB = c.close>c.open && next.close<next.open && next2.close<next.open && (c.high - next2.close)/c.high>0.004;
-    const nearBull = bullishOB && Math.abs(lastClose - c.low)/c.low<0.008;
-    const nearBear = bearishOB && Math.abs(lastClose - c.high)/c.high<0.008;
-    if (nearBull || nearBear) {
-      const entry = nearBull ? c.high : c.low;
-      const stop = nearBull ? c.low*0.997 : c.high*1.003;
-      const tp1 = nearBull ? entry*1.008 : entry*0.992;
-      const q = Math.round((0.78+Math.random()*0.17)*100); if(q<minQ) continue;
-      signals.push({id:symbol+'-'+timeframe+'-OB-'+now+'-'+i, symbol, timeframe, type:nearBull?'BUY':'SELL', strategy:'Order Block', patternName:nearBull?'Bullish OB':'Bearish OB', entry, stop, tp1, qScore:q, rr:'1.8R', description:(nearBull?'Bullish':'Bearish')+' Order Block (ICT)', time:now, patternPoints:[{time:c.time,price:c.low,label:'OB'},{time:next2.time,price:nearBull?c.high:c.low,label:'MIT'}]});
+    const c=candles[i], n1=candles[i+1], n2=candles[i+2];
+    if (!c||!n1||!n2) continue;
+    const bullOB=c.close<c.open && n1.close>n1.open && n2.close>n1.open && (n2.close-c.low)/c.low>0.004;
+    const bearOB=c.close>c.open && n1.close<n1.open && n2.close<n1.open && (c.high-n2.close)/c.high>0.004;
+    const nearBull=bullOB && Math.abs(lastClose-c.low)/c.low<0.008;
+    const nearBear=bearOB && Math.abs(lastClose-c.high)/c.high<0.008;
+    if (nearBull||nearBear) {
+      const entry=nearBull?c.high:c.low, stop=nearBull?c.low*0.997:c.high*1.003, tp1=nearBull?entry*1.008:entry*0.992;
+      const q=Math.round((0.78+Math.random()*0.17)*100); if(q<minQ) continue;
+      signals.push({id:symbol+'-'+timeframe+'-OB-'+now+'-'+i, symbol:symbol, timeframe:timeframe, type:nearBull?'BUY':'SELL', strategy:'Order Block', patternName:nearBull?'Bullish OB':'Bearish OB', entry:entry, stop:stop, tp1:tp1, qScore:q, rr:'1.8R', description:(nearBull?'Bullish':'Bearish')+' Order Block ICT', time:now, patternPoints:[{time:c.time,price:c.low,label:'OB'},{time:n2.time,price:nearBull?c.high:c.low,label:'MIT'}]});
       break;
     }
   }
 
-  // Fair Value Gap
   for (let i=candles.length-6;i<candles.length-2;i++) {
     const c1=candles[i-1], c2=candles[i], c3=candles[i+1];
     if (!c1||!c2||!c3) continue;
-    const bullFVG = c3.low > c1.high;
-    const bearFVG = c3.high < c1.low;
-    const gapSize = bullFVG ? (c3.low - c1.high)/c1.high : (c1.low - c3.high)/c1.low;
-    if ((bullFVG||bearFVG) && gapSize>0.0008 && gapSize<0.015) {
-      const near = Math.abs(lastClose - (bullFVG?c1.high:c1.low))/lastClose<0.01;
+    const bullFVG=c3.low>c1.high;
+    const bearFVG=c3.high<c1.low;
+    let gap=0;
+    if (bullFVG) gap=(c3.low-c1.high)/c1.high;
+    else if (bearFVG) gap=(c1.low-c3.high)/c1.low;
+    if ((bullFVG||bearFVG) && gap>0.0008 && gap<0.015) {
+      const near=Math.abs(lastClose-(bullFVG?c1.high:c1.low))/lastClose<0.01;
       if (!near) continue;
-      const entry = bullFVG ? c1.high + (c3.low-c1.high)*0.5 : c1.low - (c1.low-c3.high)*0.5;
-      const stop = bullFVG ? c1.high*0.997 : c1.low*1.003;
-      const tp1 = bullFVG ? entry*1.007 : entry*0.993;
+      const entry=bullFVG?c1.high+(c3.low-c1.high)*0.5:c1.low-(c1.low-c3.high)*0.5;
+      const stop=bullFVG?c1.high*0.997:c1.low*1.003;
+      const tp1=bullFVG?entry*1.007:entry*0.993;
       const q=Math.round((0.80+Math.random()*0.15)*100); if(q<minQ) continue;
-      signals.push({id:symbol+'-'+timeframe+'-FVG-'+now+'-'+i, symbol, timeframe, type:bullFVG?'BUY':'SELL', strategy:'FVG', patternName:bullFVG?'Bullish FVG':'Bearish FVG', entry, stop, tp1, qScore:q, rr:'2.0R', description:(bullFVG?'Bullish':'Bearish')+' Fair Value Gap', time:now, patternPoints:[{time:c1.time,price:c1.high,label:'FVG'},{time:c3.time,price:c3.low,label:'Fill'}]});
+      signals.push({id:symbol+'-'+timeframe+'-FVG-'+now+'-'+i, symbol:symbol, timeframe:timeframe, type:bullFVG?'BUY':'SELL', strategy:'FVG', patternName:bullFVG?'Bullish FVG':'Bearish FVG', entry:entry, stop:stop, tp1:tp1, qScore:q, rr:'2.0R', description:(bullFVG?'Bullish':'Bearish')+' Fair Value Gap', time:now, patternPoints:[{time:c1.time,price:c1.high,label:'FVG'},{time:c3.time,price:c3.low,label:'Fill'}]});
       break;
     }
   }
 
-  const filtered = signals.filter(s=>isActive(s, prices[symbol]?prices[symbol].price:null, now));
-  return { signals: filtered.sort((a,b)=>b.qScore-a.qScore).slice(0,2), candles };
+  const filtered=[];
+  for (let i=0;i<signals.length;i++) { if (isActive(signals[i], curPrice, now)) filtered.push(signals[i]); }
+  filtered.sort(function(a,b){return b.qScore-a.qScore;});
+  return { signals: filtered.slice(0,2), candles: candles };
 }
 
 export default function App(){
@@ -218,15 +264,16 @@ export default function App(){
   const [minQuality, setMinQuality] = useState(74);
   const [markets, setMarkets] = useState({ US30:true, US100:true, XAUUSD:true, XAGUSD:true, GBPUSD:true, EURUSD:true, OILCASH:true });
 
-  useEffect(()=>{
-    (async()=>{
-      await Notifications.requestPermissionsAsync();
+  useEffect(function(){
+    (async function(){
+      try { await Notifications.requestPermissionsAsync(); } catch {}
     })();
   },[]);
 
-  const fetchAllPrices = useCallback(async()=>{
+  const fetchAllPrices = useCallback(async function(){
     const newPrices = {};
-    for (let s of SYMBOLS) {
+    for (let i=0;i<SYMBOLS.length;i++) {
+      const s=SYMBOLS[i];
       try {
         const cs = await fetchCandles(s.yahoo, 60);
         const last = cs[cs.length-1].close;
@@ -234,52 +281,73 @@ export default function App(){
         newPrices[s.id] = { price:last, change:last-prev, changePercent:((last-prev)/prev)*100 };
       } catch {}
     }
-    setPrices(prev=>({...prev, ...newPrices}));
+    setPrices(function(prev){ const copy={}; for (let k in prev) copy[k]=prev[k]; for (let k in newPrices) copy[k]=newPrices[k]; return copy; });
   },[]);
 
-  const runFullScan = useCallback(async()=>{
+  const runFullScan = useCallback(async function(){
     setLoading(true);
     try {
-      const all = [];
-      const enabled = Object.keys(markets).filter(k=>markets[k]);
-      for (let sym of enabled) {
-        for (let tf of TIMEFRAMES) {
-          const { signals: sigs } = await analyzeSymbol(sym, tf, minQuality, prices);
-          all.push(...sigs);
+      const all=[];
+      const keys=Object.keys(markets);
+      for (let k=0;k<keys.length;k++) {
+        if (!markets[keys[k]]) continue;
+        const sym=keys[k];
+        for (let t=0;t<TIMEFRAMES.length;t++) {
+          const tf=TIMEFRAMES[t];
+          const res = await analyzeSymbol(sym, tf, minQuality, prices);
+          for (let s=0;s<res.signals.length;s++) all.push(res.signals[s]);
         }
       }
-      const now = Date.now();
-      const fresh = all.filter(s=>isActive(s, prices[s.symbol]?prices[s.symbol].price:null, now));
-      const sorted = fresh.sort((a,b)=>b.qScore-a.qScore).slice(0,50);
+      const now=Date.now();
+      const fresh=[];
+      for (let i=0;i<all.length;i++) { if (isActive(all[i], prices[all[i].symbol] ? prices[all[i].symbol].price : null, now)) fresh.push(all[i]); }
+      fresh.sort(function(a,b){return b.qScore-a.qScore;});
+      const sorted=fresh.slice(0,50);
       setSignals(sorted);
-      if (sorted.length>0) {
-        const top = sorted[0];
-        if (top.qScore>=minQuality) {
-          await Notifications.scheduleNotificationAsync({
-            content: { title: top.symbol+' '+top.type+' Q'+top.qScore+' • '+top.strategy+' '+top.patternName, body: top.description+' ENTRY '+formatPriceFull(top.entry, top.symbol)+' SL '+formatPriceFull(top.stop, top.symbol)+' TP '+formatPriceFull(top.tp1, top.symbol)+' • '+top.timeframe+' • '+formatTimeAgo(top.time), sound: true },
-            trigger: null,
-          });
-        }
+      if (sorted.length>0 && sorted[0].qScore>=minQuality) {
+        const top=sorted[0];
+        const bodyText = top.description + ' ENTRY ' + formatPriceFull(top.entry, top.symbol) + ' SL ' + formatPriceFull(top.stop, top.symbol) + ' TP ' + formatPriceFull(top.tp1, top.symbol) + ' ' + top.timeframe + ' ' + formatTimeAgo(top.time);
+        await Notifications.scheduleNotificationAsync({
+          content: { title: top.symbol+' '+top.type+' Q'+top.qScore+' '+top.strategy, body: bodyText, sound: true },
+          trigger: null,
+        });
       }
     } finally { setLoading(false); }
   },[minQuality, markets, prices]);
 
-  const runChart = useCallback(async()=>{
+  const runChart = useCallback(async function(){
     setLoading(true);
     try {
-      const { signals: sigs, candles: cs } = await analyzeSymbol(selectedSymbol, selectedTF, minQuality, prices);
-      setCandles(cs);
-      if (sigs.length>0) setSelectedSignal(sigs[0]); else setSelectedSignal(null);
+      const res = await analyzeSymbol(selectedSymbol, selectedTF, minQuality, prices);
+      setCandles(res.candles);
+      if (res.signals.length>0) setSelectedSignal(res.signals[0]);
+      else setSelectedSignal(null);
     } finally { setLoading(false); }
   },[selectedSymbol, selectedTF, minQuality, prices]);
 
-  useEffect(()=>{ fetchAllPrices(); const id=setInterval(fetchAllPrices, 15000); return()=>clearInterval(id); },[fetchAllPrices]);
-  useEffect(()=>{ runChart(); },[selectedSymbol, selectedTF]);
-  useEffect(()=>{ runFullScan(); const id=setInterval(runFullScan, 90000); return()=>clearInterval(id); },[runFullScan]);
+  useEffect(function(){ fetchAllPrices(); const id=setInterval(fetchAllPrices, 15000); return function(){ clearInterval(id); }; },[fetchAllPrices]);
+  useEffect(function(){ runChart(); },[selectedSymbol, selectedTF]);
+  useEffect(function(){ runFullScan(); const id=setInterval(runFullScan, 90000); return function(){ clearInterval(id); }; },[runFullScan]);
 
   const chartHtml = getChartHtml(candles.length?candles:[{time:Math.floor(Date.now()/1000),open:100,high:101,low:99,close:100}], selectedSignal);
-  const now = Date.now();
-  const activeSignals = signals.filter(s=>isActive(s, prices[s.symbol]?prices[s.symbol].price:null, now));
+  const now=Date.now();
+  const active=[];
+  for (let i=0;i<signals.length;i++) { if (isActive(signals[i], prices[signals[i].symbol] ? prices[signals[i].symbol].price : null, now)) active.push(signals[i]); }
+
+  let currentFullName='';
+  for (let i=0;i<SYMBOLS.length;i++) { if (SYMBOLS[i].id===selectedSymbol) currentFullName=SYMBOLS[i].fullName; }
+  const currentPriceStr = prices[selectedSymbol] ? formatPriceFull(prices[selectedSymbol].price, selectedSymbol) : '--';
+
+  let detailEntry='', detailStop='', detailTP='', detailLabels='', detailQ='', detailRR='', detailTime='';
+  if (selectedSignal) {
+    detailEntry = formatPriceFull(selectedSignal.entry, selectedSignal.symbol);
+    detailStop = formatPriceFull(selectedSignal.stop, selectedSignal.symbol);
+    detailTP = formatPriceFull(selectedSignal.tp1, selectedSignal.symbol);
+    detailLabels = getPatternLabels(selectedSignal.patternPoints);
+    detailQ = 'Q' + selectedSignal.qScore;
+    detailRR = selectedSignal.rr;
+    detailTime = formatTimeAgo(selectedSignal.time);
+  }
 
   return (
     <SafeAreaProvider>
@@ -287,16 +355,17 @@ export default function App(){
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>MERIDIAN</Text>
-          <TouchableOpacity style={styles.bellBtn} onPress={()=>setShowAlerts(true)}><Text style={styles.bellIcon}>🔔</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.bellBtn} onPress={function(){setShowAlerts(true);}}><Text style={styles.bellIcon}>BELL</Text></TouchableOpacity>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tickerRow}>
-          {SYMBOLS.map(s=>{
-            const p = prices[s.id];
-            const priceStr = p ? formatPriceFull(p.price, s.id) : '--';
-            const changeStr = p ? (p.changePercent>=0?'+':'')+p.changePercent.toFixed(2)+'%' : '';
-            const isPos = p ? p.changePercent>=0 : true;
+          {SYMBOLS.map(function(s){
+            const p=prices[s.id];
+            const priceStr=p?formatPriceFull(p.price, s.id):'--';
+            let changeStr='';
+            if (p) { const sign = p.changePercent>=0 ? '+' : ''; changeStr = sign + p.changePercent.toFixed(2) + '%'; }
+            const isPos=p?p.changePercent>=0:true;
             return (
-              <TouchableOpacity key={s.id} style={[styles.tickerCard, selectedSymbol===s.id && styles.tickerActive]} onPress={()=>setSelectedSymbol(s.id)}>
+              <TouchableOpacity key={s.id} style={[styles.tickerCard, selectedSymbol===s.id && styles.tickerActive]} onPress={function(){setSelectedSymbol(s.id);}}>
                 <View style={styles.tickerTop}><Text style={styles.tickerSym}>{s.id}</Text><Text style={[styles.tickerChange, isPos?styles.pos:styles.neg]}>{changeStr}</Text></View>
                 <Text style={styles.tickerPrice}>{priceStr}</Text>
               </TouchableOpacity>
@@ -304,37 +373,15 @@ export default function App(){
           })}
         </ScrollView>
         <View style={styles.tfRow}>
-          {TIMEFRAMES.map(tf=>(
-            <TouchableOpacity key={tf} style={[styles.tfBtn, selectedTF===tf && styles.tfBtnActive]} onPress={()=>setSelectedTF(tf)}>
-              <Text style={[styles.tfText, selectedTF===tf && styles.tfTextActive]}>{tf}</Text>
-            </TouchableOpacity>
-          ))}
+          {TIMEFRAMES.map(function(tf){
+            return (
+              <TouchableOpacity key={tf} style={[styles.tfBtn, selectedTF===tf && styles.tfBtnActive]} onPress={function(){setSelectedTF(tf);}}>
+                <Text style={[styles.tfText, selectedTF===tf && styles.tfTextActive]}>{tf}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
         <View style={styles.main}>
           {activeTab==='Chart' && (
-            <>
-              <View style={styles.symbolInfo}>
-                <Text style={styles.symbolTitle}>{selectedSymbol} <Text style={styles.symbolFull}>{SYMBOLS.find(s=>s.id===selectedSymbol).fullName}</Text></Text>
-                <Text style={styles.symbolPrice}>{prices[selectedSymbol] ? formatPriceFull(prices[selectedSymbol].price, selectedSymbol) : '--'}</Text>
-              </View>
-              <View style={styles.chartWrap}>
-                <WebView originWhitelist={['*']} source={{ html: chartHtml }} style={{ flex:1, backgroundColor:'#0e0e10' }} javaScriptEnabled />
-              </View>
-              {selectedSignal && (
-                <View style={styles.signalDetailBar}>
-                  <View style={styles.detailCol}><Text style={styles.detailLabel}>ENTRY</Text><Text style={styles.detailValue}>{formatPriceFull(selectedSignal.entry, selectedSignal.symbol)}</Text></View>
-                  <View style={styles.detailCol}><Text style={styles.detailLabel}>STOP</Text><Text style={[styles.detailValue,{color:'#ff3b30'}]}>{formatPriceFull(selectedSignal.stop, selectedSignal.symbol)}</Text></View>
-                  <View style={styles.detailCol}><Text style={styles.detailLabel}>TP1</Text><Text style={[styles.detailValue,{color:'#30d158'}]}>{formatPriceFull(selectedSignal.tp1, selectedSignal.symbol)}</Text></View>
-                  <View style={styles.detailCol}><Text style={styles.detailLabel}>{formatTimeAgo(selectedSignal.time)}</Text><Text style={styles.detailValue}>Q{selectedSignal.qScore} • {selectedSignal.rr}</Text></View>
-                </View>
-              )}
-              {selectedSignal && (
-                <View style={styles.setupInfo}>
-                  <Text style={styles.setupInfoText}>{selectedSignal.strategy} • {selectedSignal.patternName} • {selectedSignal.description} • Setup: {selectedSignal.patternPoints.map(p=>p.label).join(' → ')} • Entry/SL/TP on chart</Text>
-                </View>
-              )}
-            </>
-          )}
-          {activeTab==='Setups' && (
-            <ScrollView style={{flex:1}} refreshControl={<RefreshControl refreshing={loading} onRefresh={runFullScan} tintColor="#fff" />}>
-          
+            <View style={{flex:1}}>
+              <View style={styles.symb
