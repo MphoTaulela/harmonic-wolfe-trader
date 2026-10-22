@@ -46,7 +46,7 @@ function getChartHtml(candles, signal) {
     levels.push({ price: signal.tp1, color: '#30d158', title: 'TP1 ' + formatPriceFull(signal.tp1, signal.symbol) });
     if (signal.tp2) levels.push({ price: signal.tp2, color: '#30d158', title: 'TP2 ' + formatPriceFull(signal.tp2, signal.symbol) });
   }
-  const html = '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#0e0e10}#c{width:100vw;height:100vh}</style><script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script></head><body><div id="c"></div><script>const candles=' + JSON.stringify(candles) + ';const levels=' + JSON.stringify(levels) + ';const pattern=' + JSON.stringify(signal ? signal.patternPoints || [] : []) + ';const chart=LightweightCharts.createChart(document.getElementById("c"),{layout:{background:{color:"#0e0e10"},textColor:"#8a8a8e"},grid:{vertLines:{color:"#1c1c1e"},horzLines:{color:"#1c1c1e"}},rightPriceScale:{borderColor:"#2c2c2e"},timeScale:{borderColor:"#2c2c2e"}});const cs=chart.addCandlestickSeries({upColor:"#30d158",downColor:"#ff453a"});cs.setData(candles);levels.forEach(l=>{try{cs.createPriceLine({price:l.price,color:l.color,lineWidth:l.title.includes("ENTRY")?2:1,lineStyle:l.title.includes("ENTRY")?0:2,axisLabelVisible:true,title:l.title});}catch(e){}});if(pattern.length>=2){try{const col=pattern[0]&&pattern[0].label&&pattern[0].label.startsWith("1")?"#af52de":(pattern.length===5?"#0a84ff":"#ff9f0a");const ls=chart.addLineSeries({color:col,lineWidth:2});ls.setData(pattern.map(p=>({time:p.time,value:p.price})));cs.setMarkers(pattern.map(p=>({time:p.time,position:"aboveBar",color:col,shape:"circle",text:p.label})));}catch(e){}}chart.timeScale().fitContent();</script></body></html>';
+  const html = '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#0e0e10}#c{width:100vw;height:100vh}</style><script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script></head><body><div id="c"></div><script>const candles=' + JSON.stringify(candles) + ';const levels=' + JSON.stringify(levels) + ';const pattern=' + JSON.stringify(signal ? signal.patternPoints || [] : []) + ';const chart=LightweightCharts.createChart(document.getElementById("c"),{layout:{background:{color:"#0e0e10"},textColor:"#8a8a8e"},grid:{vertLines:{color:"#1c1c1e"},horzLines:{color:"#1c1c1e"}},rightPriceScale:{borderColor:"#2c2c2e"},timeScale:{borderColor:"#2c2c2e"}});const cs=chart.addCandlestickSeries({upColor:"#30d158",downColor:"#ff453a"});cs.setData(candles);levels.forEach(l=>{try{cs.createPriceLine({price:l.price,color:l.color,lineWidth:l.title.includes("ENTRY")?2:1,lineStyle:l.title.includes("ENTRY")?0:2,axisLabelVisible:true,title:l.title});}catch(e){}});if(pattern.length>=2){try{const col=pattern[0]&&pattern[0].label&&pattern[0].label.startsWith("1")?"#af52de":"#0a84ff";const ls=chart.addLineSeries({color:col,lineWidth:2});ls.setData(pattern.map(p=>({time:p.time,value:p.price})));cs.setMarkers(pattern.map(p=>({time:p.time,position:"aboveBar",color:col,shape:"circle",text:p.label})));}catch(e){}}chart.timeScale().fitContent();</script></body></html>';
   return html;
 }
 
@@ -130,12 +130,11 @@ async function analyzeSymbol(symbol, timeframe, minQ, prices) {
   const now = Date.now();
   const signals = [];
 
-  // Harmonic
   if (pivots.length>=5) {
     const last = pivots.slice(-15);
     for (let i=0;i<=last.length-5;i++) {
       const pts = last.slice(i,i+5);
-      const [X,A,B,C,D] = pts;
+      const X=pts[0], A=pts[1], B=pts[2], C=pts[3], D=pts[4];
       if (!X||!D||X.type===A.type) continue;
       const xa = Math.abs(X.price-A.price); if (xa===0) continue;
       const near = Math.abs(lastClose-D.price)/D.price<0.025;
@@ -148,12 +147,11 @@ async function analyzeSymbol(symbol, timeframe, minQ, prices) {
     }
   }
 
-  // Wolfe Wave
   if (pivots.length>=5) {
     const sorted = pivots.slice(-20);
     for (let i=0;i<=sorted.length-5;i++) {
-      const [p1,p2,p3,p4,p5]=sorted.slice(i,i+5); if(!p1||!p5) continue;
-      if (p1.type===p2.type) continue;
+      const p1=sorted[i], p2=sorted[i+1], p3=sorted[i+2], p4=sorted[i+3], p5=sorted[i+4];
+      if (!p1||!p5||p1.type===p2.type) continue;
       const bullish=p1.type==='high'&&p2.type==='low'&&p3.price>p1.price&&p4.price<p2.price&&p5.price<p4.price;
       const bearish=p1.type==='low'&&p2.type==='high'&&p3.price<p1.price&&p4.price>p2.price&&p5.price>p4.price;
       if ((bullish||bearish)&&(p5.index-p1.index)<100) {
@@ -166,7 +164,6 @@ async function analyzeSymbol(symbol, timeframe, minQ, prices) {
     }
   }
 
-  // Order Block ICT
   for (let i=candles.length-10;i<candles.length-3;i++) {
     const c = candles[i]; const next = candles[i+1]; const next2 = candles[i+2];
     if (!c||!next||!next2) continue;
@@ -179,12 +176,11 @@ async function analyzeSymbol(symbol, timeframe, minQ, prices) {
       const stop = nearBull ? c.low*0.997 : c.high*1.003;
       const tp1 = nearBull ? entry*1.008 : entry*0.992;
       const q = Math.round((0.78+Math.random()*0.17)*100); if(q<minQ) continue;
-      signals.push({id:symbol+'-'+timeframe+'-OB-'+now+'-'+i, symbol, timeframe, type:nearBull?'BUY':'SELL', strategy:'Order Block', patternName:nearBull?'Bullish OB':'Bearish OB', entry, stop, tp1, qScore:q, rr:'1.8R', description:(nearBull?'Bullish':'Bearish')+' Order Block (ICT)', time:now, patternPoints:[{time:c.time,price:c.low,label:'OB'},{time:next2.time,price:nearBull?c.high:c.low,label:'MIT'}]});
+      signals.push({id:symbol+'-'+timeframe+'-OB-'+now+'-'+i, symbol, timeframe, type:nearBull?'BUY':'SELL', strategy:'Order Block', patternName:nearBull?'Bullish OB':'Bearish OB', entry, stop, tp1, qScore:q, rr:'1.8R', description:(nearBull?'Bullish':'Bearish')+' Order Block ICT', time:now, patternPoints:[{time:c.time,price:c.low,label:'OB'},{time:next2.time,price:nearBull?c.high:c.low,label:'MIT'}]});
       break;
     }
   }
 
-  // Fair Value Gap
   for (let i=candles.length-6;i<candles.length-2;i++) {
     const c1=candles[i-1], c2=candles[i], c3=candles[i+1];
     if (!c1||!c2||!c3) continue;
@@ -336,4 +332,6 @@ export default function App(){
               )}
               {selectedSignal && (
                 <View style={styles.setupInfo}>
-                  <Text style={styles.setupInfoText}>{selectedSignal.strategy} - {selectedSignal.patternName} - {selectedSignal.description} - Setup: {selectedSignal.patternPoints.map(p=>p.label).join(' -> ')} - Entry/SL/T
+                  <Text style={styles.setupInfoText}>{selectedSignal.strategy} - {selectedSignal.patternName} - {selectedSignal.description} - Setup {selectedSignal.patternPoints.map(p=>p.label).join(' - ')} - Entry SL TP on chart</Text>
+                </View>
+      
