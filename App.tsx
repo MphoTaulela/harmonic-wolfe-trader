@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Switch, Modal } from 'react-native';
 import { WebView } from 'react-native-webview';
@@ -261,7 +262,7 @@ export default function App(){
         const top = sorted[0];
         if (top.qScore>=minQuality) {
           await Notifications.scheduleNotificationAsync({
-            content: { title: top.symbol+' '+top.type+' Q'+top.qScore+' • '+top.strategy+' '+top.patternName, body: top.description+' ENTRY '+formatPriceFull(top.entry, top.symbol)+' SL '+formatPriceFull(top.stop, top.symbol)+' TP '+formatPriceFull(top.tp1, top.symbol)+' • '+top.timeframe+' • '+formatTimeAgo(top.time), sound: true },
+            content: { title: top.symbol+' '+top.type+' Q'+top.qScore+' - '+top.strategy+' '+top.patternName, body: top.description+' ENTRY '+formatPriceFull(top.entry, top.symbol)+' SL '+formatPriceFull(top.stop, top.symbol)+' TP '+formatPriceFull(top.tp1, top.symbol)+' - '+top.timeframe+' - '+formatTimeAgo(top.time), sound: true },
             trigger: null,
           });
         }
@@ -330,9 +331,9 @@ export default function App(){
                   <View style={styles.detailCol}><Text style={styles.detailLabel}>ENTRY</Text><Text style={styles.detailValue}>{formatPriceFull(selectedSignal.entry, selectedSignal.symbol)}</Text></View>
                   <View style={styles.detailCol}><Text style={styles.detailLabel}>STOP</Text><Text style={[styles.detailValue,{color:'#ff3b30'}]}>{formatPriceFull(selectedSignal.stop, selectedSignal.symbol)}</Text></View>
                   <View style={styles.detailCol}><Text style={styles.detailLabel}>TP1</Text><Text style={[styles.detailValue,{color:'#30d158'}]}>{formatPriceFull(selectedSignal.tp1, selectedSignal.symbol)}</Text></View>
-                  <View style={styles.detailCol}><Text style={styles.detailLabel}>{formatTimeAgo(selectedSignal.time)}</Text><Text style={styles.detailValue}>Q{selectedSignal.qScore} • {selectedSignal.rr}</Text></View>
+                  <View style={styles.detailCol}><Text style={styles.detailLabel}>{formatTimeAgo(selectedSignal.time)}</Text><Text style={styles.detailValue}>Q{selectedSignal.qScore} - {selectedSignal.rr}</Text></View>
                 </View>
               )}
               {selectedSignal && (
                 <View style={styles.setupInfo}>
-                  <Text style={styles.setupInfoText}>{selectedSignal.strategy} • {selectedSignal.patternName} • {selectedSignal.description} • Setup: {selectedSignal.patternPoints.map(p=>p.label).join(' → ')} • Entry/SL/TP
+                  <Text style={styles.setupInfoText}>{selectedSignal.strategy} - {selectedSignal.patternName} - {selectedSignal.description} - Setup: {selectedSignal.patternPoints.map(p=>p.label).join(' -> ')} - Entry/SL/T
