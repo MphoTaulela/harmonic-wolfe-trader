@@ -107,7 +107,7 @@ async function fetchRaw(ticker, mins) {
     }
     return out;
   }
-                                     }
+}
 async function fetchC(ticker, mins) {
   const raw = await fetchRaw(ticker, mins);
   if (mins===240) {
@@ -216,8 +216,7 @@ async function analyze(sym, tf, minQ, prices) {
     if (!c1||!c2||!c3) continue;
     const bull=c3.low>c1.high, bear=c3.high<c1.low;
     let gap=0; if (bull) gap=(c3.low-c1.high)/c1.high; else if (bear) gap=(c1.low-c3.high)/c1.low;
-    if ((bull||bear) && gap>0.0008 && gap<0.015) {
-            if (Math.abs(lastClose-(bull?c1.high:c1.low))/lastClose>=0.01) continue;
+    if ((bull||bear) && gap>0.0008 && gap<0.015) {      if (Math.abs(lastClose-(bull?c1.high:c1.low))/lastClose>=0.01) continue;
       const entry=bull?c1.high+(c3.low-c1.high)*0.5:c1.low-(c1.low-c3.high)*0.5;
       const stop=bull?c1.high*0.997:c1.low*1.003, tp1=bull?entry*1.007:entry*0.993;
       const q=Math.round((0.8+Math.random()*0.15)*100); if(q<minQ) continue;
@@ -326,8 +325,7 @@ export default function App(){
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" />
-            <SafeAreaView style={styles.container}>
+      <StatusBar style="light" />      <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>MERIDIAN</Text>
           <TouchableOpacity style={styles.bellBtn} onPress={function(){setShowAlerts(true);}}><Text style={styles.bellIcon}>🔔</Text></TouchableOpacity>
