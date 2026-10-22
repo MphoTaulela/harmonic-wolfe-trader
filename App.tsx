@@ -107,8 +107,7 @@ async function fetchRaw(ticker, mins) {
     }
     return out;
   }
-}
-
+                                     }
 async function fetchC(ticker, mins) {
   const raw = await fetchRaw(ticker, mins);
   if (mins===240) {
@@ -218,7 +217,7 @@ async function analyze(sym, tf, minQ, prices) {
     const bull=c3.low>c1.high, bear=c3.high<c1.low;
     let gap=0; if (bull) gap=(c3.low-c1.high)/c1.high; else if (bear) gap=(c1.low-c3.high)/c1.low;
     if ((bull||bear) && gap>0.0008 && gap<0.015) {
-      if (Math.abs(lastClose-(bull?c1.high:c1.low))/lastClose>=0.01) continue;
+            if (Math.abs(lastClose-(bull?c1.high:c1.low))/lastClose>=0.01) continue;
       const entry=bull?c1.high+(c3.low-c1.high)*0.5:c1.low-(c1.low-c3.high)*0.5;
       const stop=bull?c1.high*0.997:c1.low*1.003, tp1=bull?entry*1.007:entry*0.993;
       const q=Math.round((0.8+Math.random()*0.15)*100); if(q<minQ) continue;
@@ -328,7 +327,7 @@ export default function App(){
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
-      <SafeAreaView style={styles.container}>
+            <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>MERIDIAN</Text>
           <TouchableOpacity style={styles.bellBtn} onPress={function(){setShowAlerts(true);}}><Text style={styles.bellIcon}>🔔</Text></TouchableOpacity>
@@ -371,4 +370,123 @@ export default function App(){
                   <View style={styles.detailCol}><Text style={styles.detailLabel}>ENTRY</Text><Text style={styles.detailValue}>{fmtPrice(selectedSignal.entry, selectedSignal.symbol)}</Text></View>
                   <View style={styles.detailCol}><Text style={styles.detailLabel}>STOP</Text><Text style={[styles.detailValue,{color:'#ff3b30'}]}>{fmtPrice(selectedSignal.stop, selectedSignal.symbol)}</Text></View>
                   <View style={styles.detailCol}><Text style={styles.detailLabel}>TP1</Text><Text style={[styles.detailValue,{color:'#30d158'}]}>{fmtPrice(selectedSignal.tp1, selectedSignal.symbol)}</Text></View>
-                  <View style={styles.detailCol}><Te
+                  <View style={styles.detailCol}><Text style={styles.detailLabel}>{timeAgo(selectedSignal.time)}</Text><Text style={styles.detailValue}>Q{selectedSignal.qScore}</Text></View>
+                </View>
+              )}
+              {selectedSignal && (
+                <View style={styles.setupInfo}>
+                  <Text style={styles.setupInfoText}>{selectedSignal.strategy} • {selectedSignal.patternName} • {selectedSignal.description} • {selectedSignal.patternPoints.map(function(p){return p.label;}).join(' → ')} • Entry/SL/TP on chart</Text>
+                </View>
+              )}
+            </>
+          )}
+          {activeTab==='Setups' && (
+            <ScrollView style={{flex:1}} refreshControl={<RefreshControl refreshing={loading} onRefresh={runScan} tintColor="#fff" />}>
+              <View style={styles.setupsHeader}><Text style={styles.setupsHeaderText}>{activeList.length} tradeable</Text></View>
+              {activeList.map(function(s){
+                return (
+                  <TouchableOpacity key={s.id} style={styles.setupCard} onPress={function(){setSelectedSymbol(s.symbol); setSelectedTF(s.timeframe); setSelectedSignal(s); setActiveTab('Chart');}}>
+                    <View style={styles.setupTop}><Text style={styles.setupSymbol}>{s.symbol} {s.timeframe} {s.type} Q{s.qScore} • {s.patternName}</Text><Text style={styles.setupTime}>{timeAgo(s.time)}</Text></View>
+                    <Text style={styles.setupDesc}>ENTRY {fmtPrice(s.entry, s.symbol)} STOP {fmtPrice(s.stop, s.symbol)} TP {fmtPrice(s.tp1, s.symbol)}</Text>
+                    <Text style={styles.setupMeta}>{s.strategy} • {s.description} • {s.patternPoints.map(function(p){return p.label;}).join(' → ')}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+              {activeList.length===0 && <Text style={styles.emptyText}>No fresh setups. Scanning Harmonic, Wolfe, OB, FVG every 90s.</Text>}
+            </ScrollView>
+          )}
+        </View>
+        <View style={styles.bottomTabs}>
+          <TouchableOpacity style={styles.tabBtn} onPress={function(){setActiveTab('Chart');}}><Text style={[styles.tabLabel, activeTab==='Chart'&&styles.tabActive]}>Chart</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.tabBtn} onPress={function(){setActiveTab('Setups');}}><Text style={[styles.tabLabel, activeTab==='Setups'&&styles.tabActive]}>Setups {activeList.length}</Text></TouchableOpacity>
+        </View>
+        <Modal visible={showAlerts} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}><Text style={styles.modalTitle}>Alerts & filters</Text><TouchableOpacity onPress={function(){setShowAlerts(false);}}><Text style={styles.modalClose}>✕</Text></TouchableOpacity></View>
+              <ScrollView>
+                <Text style={styles.modalSection}>MINIMUM QUALITY</Text>
+                <View style={styles.qualityRow}>
+                  <TouchableOpacity onPress={function(){setMinQuality(function(v){return Math.max(0, v-1);});}} style={styles.qualityBtn}><Text style={styles.qualityBtnText}>−</Text></TouchableOpacity>
+                  <View style={styles.qualityBarWrap}>
+                    <View style={styles.qualityBarBg}><View style={[styles.qualityBarFill, {width: minQuality+'%'}]} /></View>
+                    <Text style={styles.qualityValue}>{minQuality}</Text>
+                  </View>
+                  <TouchableOpacity onPress={function(){setMinQuality(function(v){return Math.min(100, v+1);});}} style={styles.qualityBtn}><Text style={styles.qualityBtnText}>+</Text></TouchableOpacity>
+                </View>
+                <View style={styles.qualityPresets}>
+                  {[60,70,74,80,85,90].map(function(v){
+                    return (<TouchableOpacity key={v} style={[styles.presetBtn, minQuality===v && styles.presetActive]} onPress={function(){setMinQuality(v);}}><Text style={[styles.presetText, minQuality===v && styles.presetTextActive]}>{v}</Text></TouchableOpacity>);
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      </SafeAreaView>
+    </SafeAreaProvider>
+  );
+}
+
+const styles = StyleSheet.create({
+  container:{flex:1, backgroundColor:'#0a0a0a'},
+  header:{flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:16, paddingTop:10, paddingBottom:8, backgroundColor:'#0a0a0a', borderBottomWidth:1, borderBottomColor:'#1c1c1e'},
+  headerTitle:{color:'#fff', fontSize:16, fontWeight:'900', letterSpacing:1},
+  bellBtn:{padding:8}, bellIcon:{fontSize:20},
+  tickerRow:{maxHeight:58, backgroundColor:'#0a0a0a', borderBottomWidth:1, borderBottomColor:'#1c1c1e'},
+  tickerCard:{minWidth:115, paddingHorizontal:12, paddingVertical:8, marginRight:4, backgroundColor:'#141414', borderRadius:6, borderWidth:1, borderColor:'#1c1c1e'},
+  tickerActive:{backgroundColor:'#1c1c1e', borderColor:'#3a3a3c'},
+  tickerTop:{flexDirection:'row', justifyContent:'space-between'},
+  tickerSym:{color:'#fff', fontSize:10, fontWeight:'700'},
+  tickerChange:{fontSize:9, fontWeight:'600'},
+  tickerPrice:{color:'#fff', fontSize:12, fontWeight:'700', marginTop:3},
+  pos:{color:'#30d158'}, neg:{color:'#ff453a'},
+  tfRow:{flexDirection:'row', paddingHorizontal:12, paddingVertical:8, backgroundColor:'#0a0a0a', borderBottomWidth:1, borderBottomColor:'#1c1c1e'},
+  tfBtn:{paddingHorizontal:16, paddingVertical:6, borderRadius:6, backgroundColor:'#1c1c1e', marginRight:6, borderWidth:1, borderColor:'#2c2c2e'},
+  tfBtnActive:{backgroundColor:'#fff', borderColor:'#fff'},
+  tfText:{color:'#8e8e93', fontSize:11, fontWeight:'700'},
+  tfTextActive:{color:'#000'},
+  main:{flex:1, backgroundColor:'#0e0e10'},
+  symbolInfo:{paddingHorizontal:12, paddingVertical:8},
+  symbolTitle:{color:'#fff', fontSize:13, fontWeight:'700'},
+  symbolFull:{color:'#8e8e93', fontWeight:'400'},
+  symbolPrice:{color:'#fff', fontSize:13, fontWeight:'700', marginTop:2},
+  chartWrap:{flex:1, backgroundColor:'#0e0e10'},
+  signalDetailBar:{flexDirection:'row', backgroundColor:'#141414', paddingVertical:10, paddingHorizontal:12, borderTopWidth:1, borderTopColor:'#1c1c1e'},
+  detailCol:{flex:1},
+  detailLabel:{color:'#8e8e93', fontSize:9, fontWeight:'600'},
+  detailValue:{color:'#fff', fontSize:11, fontWeight:'700', marginTop:2},
+  setupInfo:{backgroundColor:'#141414', paddingHorizontal:12, paddingVertical:6, borderTopWidth:1, borderTopColor:'#1c1c1e'},
+  setupInfoText:{color:'#8e8e93', fontSize:10, lineHeight:13},
+  bottomTabs:{flexDirection:'row', backgroundColor:'#141414', borderTopWidth:1, borderTopColor:'#1c1c1e', paddingVertical:8},
+  tabBtn:{flex:1, alignItems:'center'},
+  tabLabel:{color:'#8e8e93', fontSize:12, fontWeight:'600'},
+  tabActive:{color:'#fff'},
+  setupsHeader:{paddingHorizontal:12, paddingVertical:10, borderBottomWidth:1, borderBottomColor:'#1c1c1e'},
+  setupsHeaderText:{color:'#8e8e93', fontSize:11},
+  setupCard:{backgroundColor:'#141414', marginHorizontal:12, marginTop:10, borderRadius:10, padding:12, borderWidth:1, borderColor:'#1c1c1e'},
+  setupTop:{flexDirection:'row', justifyContent:'space-between'},
+  setupSymbol:{color:'#fff', fontSize:12, fontWeight:'700'},
+  setupTime:{color:'#8e8e93', fontSize:10},
+  setupDesc:{color:'#fff', fontSize:11, marginTop:6, fontWeight:'600'},
+  setupMeta:{color:'#636366', fontSize:10, marginTop:6},
+  emptyText:{color:'#636366', textAlign:'center', marginTop:40, paddingHorizontal:20, fontSize:12},
+  modalOverlay:{flex:1, backgroundColor:'rgba(0,0,0,0.75)', justifyContent:'flex-end'},
+  modalContent:{backgroundColor:'#141414', borderTopLeftRadius:16, borderTopRightRadius:16, paddingHorizontal:16, paddingTop:16, height:'60%'},
+  modalHeader:{flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16},
+  modalTitle:{color:'#fff', fontSize:16, fontWeight:'700'},
+  modalClose:{color:'#8e8e93', fontSize:18, padding:4},
+  modalSection:{color:'#8e8e93', fontSize:11, fontWeight:'700', marginTop:22, marginBottom:10, letterSpacing:0.5},
+  qualityRow:{flexDirection:'row', alignItems:'center', marginTop:8},
+  qualityBtn:{backgroundColor:'#1c1c1e', width:40, height:40, borderRadius:8, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor:'#2c2c2e'},
+  qualityBtnText:{color:'#fff', fontSize:20, fontWeight:'700'},
+  qualityBarWrap:{flex:1, marginHorizontal:12},
+  qualityBarBg:{height:8, backgroundColor:'#2c2c2e', borderRadius:4, overflow:'hidden'},
+  qualityBarFill:{height:'100%', backgroundColor:'#30d158', borderRadius:4},
+  qualityValue:{color:'#fff', fontSize:14, fontWeight:'700', textAlign:'center', marginTop:6},
+  qualityPresets:{flexDirection:'row', marginTop:12},
+  presetBtn:{paddingHorizontal:12, paddingVertical:6, borderRadius:6, backgroundColor:'#1c1c1e', marginRight:6, borderWidth:1, borderColor:'#2c2c2e'},
+  presetActive:{backgroundColor:'#fff', borderColor:'#fff'},
+  presetText:{color:'#8e8e93', fontSize:11, fontWeight:'700'},
+  presetTextActive:{color:'#000'},
+});
