@@ -107,7 +107,7 @@ async function fetchRaw(ticker, mins) {
     }
     return out;
   }
-}
+    }
 async function fetchC(ticker, mins) {
   const raw = await fetchRaw(ticker, mins);
   if (mins===240) {
