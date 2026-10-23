@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Switch, Modal } from 'react-native';
 import { WebView } from 'react-native-webview';
@@ -242,7 +243,8 @@ export default function App(){
   const [loading, setLoading] = useState(false);
   const [selectedSignal, setSelectedSignal] = useState(null);
   const [showAlerts, setShowAlerts] = useState(false);
-  const [minQuality, setMinQuality] = useState(74);  const [markets, setMarkets] = useState({ US30:true, US100:true, XAUUSD:true, XAGUSD:true, GBPUSD:true, EURUSD:true, OILCASH:true });
+  const [minQuality, setMinQuality] = useState(74);
+  const [markets, setMarkets] = useState({ US30:true, US100:true, XAUUSD:true, XAGUSD:true, GBPUSD:true, EURUSD:true, OILCASH:true });
 
   useEffect(function(){
     (async function(){
